@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monify</title>
+  <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+  <link rel="shortcut icon" href="/assets/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+  <main class="view-container" id="player-view">
+    <header class="top-bar">
+      <div class="brand-mark">
+        <img src="/assets/logo.svg" alt="Monify logo" class="brand-logo">
+        <div>
+          <p class="eyebrow">Music Player</p>
+          <h1>Monify</h1>
+        </div>
+      </div>
+      <button class="search-trigger" id="search-trigger" type="button">
+        <i data-lucide="search"></i>
+        <span>Search</span>
+      </button>
+    </header>
+
+    <section class="player-card">
+      <div class="quality-anchor">
+        <button class="btn-icon menu-trigger" id="quality-menu-btn" title="Quality settings" type="button">
+          <i data-lucide="more-horizontal"></i>
+        </button>
+        <div id="quality-menu" class="quality-menu hidden">
+          <p class="menu-title">Audio Quality</p>
+          <select id="quality-select">
+            <option value="320k">320k Ultra</option>
+            <option value="256k">256k High</option>
+            <option value="192k">192k Balanced</option>
+            <option value="128k" selected>128k Standard</option>
+            <option value="96k">96k Data Saver</option>
+            <option value="64k">64k Low Bandwidth</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="disc-stage">
+        <div class="vinyl-disc" id="vinyl-disc">
+          <img class="disk-base" src="/assets/disk.svg" alt="Disk">
+          <div class="disc-art">
+            <img id="disc-thumbnail" src="" alt="Song thumbnail">
+          </div>
+        </div>
+      </div>
+
+      <div class="player-info">
+        <div class="title-row">
+          <div class="text-info">
+            <p class="eyebrow">Now playing</p>
+            <h2 id="selected-title">Monify</h2>
+            <p class="song-meta" id="selected-artist"></p>
+          </div>
+        </div>
+
+        <div class="progress-panel">
+          <input type="range" id="progress-slider" class="progress-slider" min="0" max="100" value="0" step="0.1"
+            aria-label="Seek song">
+          <div class="time-info">
+            <span id="current-time">0:00</span>
+            <span id="total-time">0:00</span>
+          </div>
+        </div>
+
+        <div class="playback-controls">
+          <button class="btn-inline" id="download-btn" title="Download" type="button">
+            <i data-lucide="download"></i>
+          </button>
+          <button class="btn-control" id="prev-btn" type="button" aria-label="Previous song">
+            <i data-lucide="skip-back"></i>
+          </button>
+          <button class="btn-play" id="play-btn" type="button" aria-label="Play or pause">
+            <span id="play-glyph"><i data-lucide="play"></i></span>
+            <span class="loading hidden" id="loading-indicator" aria-hidden="true"></span>
+          </button>
+          <button class="btn-control" id="next-btn" type="button" aria-label="Next song">
+            <i data-lucide="skip-forward"></i>
+          </button>
+          <button class="btn-inline" id="recent-btn" title="Recently Played" type="button">
+            <i data-lucide="history"></i>
+          </button>
+        </div>
+
+        <p class="status" id="player-status"></p>
+
+        <div class="action-row">
+          <button class="btn-up-next" id="up-next-btn" type="button">Play Something New</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <main class="view-container hidden" id="search-view">
+    <section class="search-card">
+      <header class="search-header">
+        <form id="search-form" class="search-form">
+          <div class="search-input-wrap">
+            <button type="button" class="btn-icon" id="back-btn" aria-label="Back to player">
+              <i data-lucide="arrow-left"></i>
+            </button>
+            <input id="search-input" type="text" placeholder="Search songs, moods, artists" autocomplete="off">
+            <button type="submit" class="search-submit">Search</button>
+          </div>
+        </form>
+      </header>
+
+      <div class="results-meta">
+        <span class="eyebrow" id="results-label">Results</span>
+        <span class="count" id="search-count"></span>
+      </div>
+
+      <div class="results-container" id="results"></div>
+    </section>
+  </main>
+
+  <audio id="audio-player"></audio>
+  <input type="hidden" id="url-input">
+  <script src="/assets/config.js"></script>
+  <script src="/assets/app.js"></script>
+</body>
+
+</html>

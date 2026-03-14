@@ -1,0 +1,12 @@
+{
+  "name": "infinity-music-player",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local YouTube-to-MP3 streaming player with a static frontend and Express backend",
+  "scripts": {
+    "install:server": "cd server && npm install",
+    "start": "node server/src/index.js",
+    "start:server": "node server/src/index.js",
+    "dev": "node server/src/index.js"
+  }
+}
