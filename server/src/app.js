@@ -5,6 +5,7 @@ const { env } = require('./config/env');
 const healthRoutes = require('./routes/health.routes');
 const searchRoutes = require('./routes/search.routes');
 const streamRoutes = require('./routes/stream.routes');
+const streamInfoRoutes = require('./routes/stream-info.routes');
 const resolveRoutes = require('./routes/resolve.routes');
 
 function createApp() {
@@ -12,12 +13,14 @@ function createApp() {
 
   app.use(cors());
   app.use(express.json());
-  app.use(express.static(env.clientDir));
 
   app.use('/api', healthRoutes);
   app.use('/api', searchRoutes);
   app.use('/api', streamRoutes);
+  app.use('/api', streamInfoRoutes);
   app.use('/api', resolveRoutes);
+
+  app.use(express.static(env.clientDir));
 
   app.use((err, _req, res, _next) => {
     console.error('request handling error:', err);

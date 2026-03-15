@@ -43,10 +43,13 @@ const elements = {
   recentBtn: document.getElementById('recent-btn'),
 };
 
+elements.audio.referrerPolicy = 'no-referrer';
+
 const state = {
   isPlaying: false,
   isLoading: false,
   selectedVideo: null,
+  activeStream: null,
   searchResults: [],
   trendingResults: [],
   recentlyPlayed: JSON.parse(localStorage.getItem('monify_recent') || '[]'),
@@ -54,10 +57,41 @@ const state = {
   activeQueryLabel: 'Results',
   progressLocked: false,
   metadataCache: new Map(),
+  streamRetryCount: 0,
+  playbackRequestId: 0,
 };
 
 function getApiBaseUrl() {
   return `${window.location.protocol}//${window.location.host}`;
+}
+
+function getExtractor() {
+  if (!window.MonifyExtractor || typeof window.MonifyExtractor.resolveAudioStream !== 'function') {
+    throw new Error('Browser extractor is not available.');
+  }
+
+  return window.MonifyExtractor;
+}
+
+function getPreferredQuality() {
+  return elements.qualitySelect?.value || '128k';
+}
+
+function clearActiveStream() {
+  state.activeStream = null;
+  state.streamRetryCount = 0;
+}
+
+function isSameVideo(left, right) {
+  if (!left || !right) {
+    return false;
+  }
+
+  return Boolean(
+    (left.id && right.id && left.id === right.id)
+    || (left.url && right.url && left.url === right.url)
+    || (left.videoId && right.videoId && left.videoId === right.videoId)
+  );
 }
 
 function formatTime(seconds) {
@@ -169,7 +203,7 @@ async function resolveSongMetadata(video) {
     }
 
     const cleanTitle = (data.title || video.title || 'Unknown title').replace(/\bvideo\b/gi, '').replace(/\s{2,}/g, ' ').trim();
-    
+
     const resolved = {
       title: cleanTitle,
       channelTitle: data.channelTitle || video.channelTitle || '',
@@ -195,11 +229,11 @@ async function resolveSongMetadata(video) {
 
 async function selectVideo(video, options = {}) {
   state.selectedVideo = { ...video };
+  clearActiveStream();
   applySongToUi(state.selectedVideo);
 
-  // Add to recently played (avoiding immediate duplicates)
   if (!state.recentlyPlayed.length || state.recentlyPlayed[0].url !== video.url) {
-    state.recentlyPlayed = [state.selectedVideo, ...state.recentlyPlayed.filter(v => v.url !== video.url)].slice(0, 20);
+    state.recentlyPlayed = [state.selectedVideo, ...state.recentlyPlayed.filter((v) => v.url !== video.url)].slice(0, 20);
     localStorage.setItem('monify_recent', JSON.stringify(state.recentlyPlayed));
   }
 
@@ -285,7 +319,7 @@ async function searchVideos(query, options = {}) {
     const cleanTitle = (item.title || '').replace(/\bvideo\b/gi, '').replace(/\s{2,}/g, ' ').trim();
     return { ...item, title: cleanTitle };
   });
-  
+
   state.cache.set(normalizedQuery, results);
 
   if (options.cacheAsTrending) {
@@ -305,8 +339,7 @@ async function preloadTrending() {
   try {
     const cached = localStorage.getItem('monify_trending');
     const cacheTime = localStorage.getItem('monify_trending_time');
-    
-    // Use cache if less than 2 hours old
+
     if (cached && cacheTime && (Date.now() - parseInt(cacheTime, 10) < 2 * 60 * 60 * 1000)) {
       state.trendingResults = JSON.parse(cached);
       return;
@@ -314,10 +347,10 @@ async function preloadTrending() {
 
     const results = await searchVideos(TRENDING_QUERY, {
       skipRender: true,
-      cacheAsTrending: false, // We'll handle caching manually here
+      cacheAsTrending: false,
       limit: 50,
     });
-    
+
     state.trendingResults = results;
     localStorage.setItem('monify_trending', JSON.stringify(results));
     localStorage.setItem('monify_trending_time', Date.now().toString());
@@ -354,37 +387,69 @@ function hideSearchView() {
   elements.playerView.classList.remove('hidden');
 }
 
-function buildMediaUrl(endpoint, extraParams = {}) {
-  const params = new URLSearchParams({
-    url: elements.urlInput.value,
-    quality: elements.qualitySelect.value,
-    ...extraParams,
-  });
+async function ensurePlayableStream(video, options = {}) {
+  if (!video) {
+    throw new Error('No video selected.');
+  }
 
-  return `${getApiBaseUrl()}${endpoint}?${params.toString()}`;
+  if (!options.forceRefresh && state.activeStream && isSameVideo(video, state.selectedVideo)) {
+    return state.activeStream;
+  }
+
+  const extractor = getExtractor();
+  const input = {
+    videoId: video.id,
+    url: video.url,
+  };
+
+  const stream = options.forceRefresh
+    ? await extractor.refreshAudioStream(state.activeStream || input, {
+      preferredQuality: getPreferredQuality(),
+    })
+    : await extractor.resolveAudioStream(input, {
+      preferredQuality: getPreferredQuality(),
+    });
+
+  state.activeStream = stream;
+  return stream;
 }
 
-async function startPlayback() {
+async function startPlayback(options = {}) {
   if (!state.selectedVideo) {
     return;
   }
 
+  const playbackRequestId = ++state.playbackRequestId;
   setLoading(true);
-  setPlayerStatus('Starting stream...');
-
-  const nextSrc = buildMediaUrl('/api/stream');
-  if (elements.audio.src !== nextSrc) {
-    elements.audio.src = nextSrc;
-  }
+  setPlayerStatus(options.forceRefresh ? 'Refreshing stream...' : 'Resolving audio...');
 
   try {
+    const targetVideo = state.selectedVideo;
+    const stream = await ensurePlayableStream(targetVideo, {
+      forceRefresh: Boolean(options.forceRefresh),
+    });
+
+    if (playbackRequestId !== state.playbackRequestId || !isSameVideo(targetVideo, state.selectedVideo)) {
+      return;
+    }
+
+    if (elements.audio.src !== stream.streamUrl) {
+      elements.audio.src = stream.streamUrl;
+    }
+
     await elements.audio.play();
+
+    if (playbackRequestId !== state.playbackRequestId) {
+      return;
+    }
+
+    state.streamRetryCount = 0;
     setPlaying(true);
     setPlayerStatus(`Playing ${state.selectedVideo.title}`);
   } catch (error) {
     console.error('Playback failed:', error);
     stopPlayback(true);
-    setPlayerStatus('Playback failed. Try another song.');
+    setPlayerStatus(error.message || 'Playback failed. Try another song.');
   } finally {
     setLoading(false);
   }
@@ -392,8 +457,7 @@ async function startPlayback() {
 
 function stopPlayback(silent = false) {
   elements.audio.pause();
-  
-  // CRITICAL FIX: Murder the HTTP connection to prevent server leak
+
   if (elements.audio.src) {
     elements.audio.removeAttribute('src');
     elements.audio.load();
@@ -405,6 +469,18 @@ function stopPlayback(silent = false) {
   if (!silent) {
     setPlayerStatus('Ready to play');
   }
+}
+
+async function retryPlaybackWithFreshUrl() {
+  const maxRetries = window.MonifyExtractor?.MAX_STREAM_RETRIES ?? 1;
+  if (state.streamRetryCount >= maxRetries) {
+    stopPlayback(true);
+    setPlayerStatus('Stream expired or unavailable.');
+    return;
+  }
+
+  state.streamRetryCount += 1;
+  await startPlayback({ forceRefresh: true });
 }
 
 function togglePlayback() {
@@ -431,7 +507,10 @@ function togglePlayback() {
     })
     .catch((error) => {
       console.error('Resume failed:', error);
-      setPlayerStatus('Playback failed. Try another song.');
+      retryPlaybackWithFreshUrl().catch((retryError) => {
+        console.error('Resume refresh failed:', retryError);
+        setPlayerStatus(retryError.message || 'Playback failed. Try another song.');
+      });
     });
 }
 
@@ -490,11 +569,23 @@ function downloadSelectedVideo() {
   }
 
   const fileTitle = state.selectedVideo.title || 'song';
-  const anchor = document.createElement('a');
-  anchor.href = buildMediaUrl('/api/download', { title: fileTitle, duration: durationSeconds });
-  anchor.download = `${fileTitle}.mp3`;
-  anchor.click();
-  setPlayerStatus('Download started');
+  setPlayerStatus('Preparing download...');
+
+  ensurePlayableStream(state.selectedVideo, { forceRefresh: true })
+    .then((stream) => {
+      const anchor = document.createElement('a');
+      anchor.href = stream.streamUrl;
+      anchor.download = `${fileTitle}.${stream.fileExtension || 'webm'}`;
+      anchor.rel = 'noopener';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setPlayerStatus('Download started');
+    })
+    .catch((error) => {
+      console.error('Download failed:', error);
+      setPlayerStatus(error.message || 'Download failed.');
+    });
 }
 
 elements.searchTrigger.addEventListener('click', showSearchView);
@@ -511,8 +602,9 @@ document.addEventListener('click', (event) => {
 
 elements.qualitySelect.addEventListener('change', () => {
   elements.qualityMenu.classList.add('hidden');
+  clearActiveStream();
   if (state.isPlaying) {
-    startPlayback();
+    startPlayback({ forceRefresh: true });
   }
 });
 
@@ -580,9 +672,14 @@ elements.audio.addEventListener('pause', () => {
   }
 });
 
-elements.audio.addEventListener('error', () => {
-  stopPlayback(true);
-  setPlayerStatus('Stream error. Try another song.');
+elements.audio.addEventListener('error', async () => {
+  try {
+    await retryPlaybackWithFreshUrl();
+  } catch (error) {
+    console.error('Stream refresh failed:', error);
+    stopPlayback(true);
+    setPlayerStatus(error.message || 'Stream error. Try another song.');
+  }
 });
 
 elements.audio.addEventListener('ended', () => {
@@ -593,3 +690,4 @@ elements.audio.addEventListener('ended', () => {
 selectVideo(DEFAULT_SONG, { keepSearchOpen: true });
 preloadTrending();
 updateProgressUi(0);
+

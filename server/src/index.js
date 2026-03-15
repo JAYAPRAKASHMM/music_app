@@ -5,6 +5,37 @@ const { env } = require('./config/env');
 const app = createApp();
 const server = http.createServer(app);
 
+const originalWarn = console.warn.bind(console);
+console.warn = (...args) => {
+  const text = args.map((arg) => String(arg)).join(' ');
+
+  if (text.includes('[YOUTUBEJS][Player]: Failed to extract signature decipher function.')) {
+    return;
+  }
+
+  if (text.includes('[YOUTUBEJS][Player]: Failed to extract n decipher function.')) {
+    return;
+  }
+
+  if (text.includes('ExperimentalWarning') && text.includes('Importing JSON modules is an experimental feature')) {
+    return;
+  }
+
+  originalWarn(...args);
+};
+
+process.removeAllListeners('warning');
+process.on('warning', (warning) => {
+  if (
+    warning?.name === 'ExperimentalWarning'
+    && String(warning.message || '').includes('Importing JSON modules is an experimental feature')
+  ) {
+    return;
+  }
+
+  originalWarn(warning);
+});
+
 function formatLocalUrl(address) {
   const host = address.address === '::' || address.address === '0.0.0.0'
     ? 'localhost'
