@@ -744,7 +744,7 @@ function showToast(msg, duration = 0) {
 (async () => {
   const isNative = !!(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalBackendPlugin);
   if (!isNative) return;
-  showToast('⏳ Updating player engine...');
+  showToast('⏳ Initializing player...');
   try {
     const result = await window.Capacitor.Plugins.LocalBackendPlugin.initYoutubeDL();
     console.log('[INIT] YoutubeDL init result:', result);
