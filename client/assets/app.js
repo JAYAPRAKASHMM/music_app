@@ -364,6 +364,18 @@ function buildMediaUrl(endpoint, extraParams = {}) {
   return `${getApiBaseUrl()}${endpoint}?${params.toString()}`;
 }
 
+async function resolveStreamUrl(videoUrl) {
+  const isNative = window.Capacitor?.isNativePlatform?.() && window.Capacitor?.Plugins?.LocalBackendPlugin;
+  if (isNative) {
+    const result = await window.Capacitor.Plugins.LocalBackendPlugin.getStreamUrl({
+      url: videoUrl
+    });
+    return result.url;
+  }
+
+  return buildMediaUrl('/api/stream');
+}
+
 async function startPlayback() {
   if (!state.selectedVideo) {
     return;
@@ -372,12 +384,12 @@ async function startPlayback() {
   setLoading(true);
   setPlayerStatus('Starting stream...');
 
-  const nextSrc = buildMediaUrl('/api/stream');
-  if (elements.audio.src !== nextSrc) {
-    elements.audio.src = nextSrc;
-  }
-
   try {
+    const nextSrc = await resolveStreamUrl(state.selectedVideo.url);
+    if (elements.audio.src !== nextSrc) {
+      elements.audio.src = nextSrc;
+    }
+
     await elements.audio.play();
     setPlaying(true);
     setPlayerStatus(`Playing ${state.selectedVideo.title}`);
