@@ -20,13 +20,22 @@ public class LocalBackendPlugin extends Plugin {
     public void load() {
         super.load();
         if (!initialized) {
-            try {
-                YoutubeDL.getInstance().init(getContext());
-                Log.d(TAG, "YoutubeDL initialized successfully");
-                initialized = true;
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to initialize YoutubeDL: " + e.getMessage());
-            }
+            new Thread(() -> {
+                try {
+                    YoutubeDL.getInstance().init(getContext());
+                    Log.d(TAG, "YoutubeDL initialized successfully");
+                    initialized = true;
+
+                    // Update yt-dlp to the latest version on first launch to fix YouTube extraction issues
+                    Log.d(TAG, "Updating yt-dlp to latest version...");
+                    YoutubeDL.UpdateStatus status = YoutubeDL.getInstance().updateYoutubeDL(getContext(), YoutubeDL.UpdateChannel.STABLE);
+                    Log.d(TAG, "yt-dlp update status: " + status.toString());
+                } catch (Exception e) {
+                    Log.e(TAG, "YoutubeDL init/update failed: " + e.getMessage());
+                    // Still mark as initialized so the plugin can still attempt to work
+                    initialized = true;
+                }
+            }).start();
         }
     }
 
