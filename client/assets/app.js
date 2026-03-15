@@ -169,7 +169,7 @@ async function resolveSongMetadata(video) {
     }
 
     const cleanTitle = (data.title || video.title || 'Unknown title').replace(/\bvideo\b/gi, '').replace(/\s{2,}/g, ' ').trim();
-    
+
     const resolved = {
       title: cleanTitle,
       channelTitle: data.channelTitle || video.channelTitle || '',
@@ -268,21 +268,21 @@ async function performNativeYoutubeSearch(query) {
   }
 
   const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
-  
+
   // Step 1: Search for Video IDs
   const searchParams = new URLSearchParams({
     key: apiKey,
     q: query,
     part: 'snippet',
     type: 'video',
-    maxResults: '20',
+    maxResults: '50',
     videoEmbeddable: 'true',
     safeSearch: 'moderate',
   });
   const searchRes = await fetch(`${YOUTUBE_API_BASE}/search?${searchParams.toString()}`);
   const searchData = await searchRes.json();
   if (!searchRes.ok) throw new Error(searchData.error?.message || 'YT Search failed');
-  
+
   const videoIds = (searchData.items || []).map(i => i.id?.videoId).filter(Boolean);
   if (!videoIds.length) return [];
 
@@ -309,9 +309,9 @@ async function performNativeYoutubeSearch(query) {
       durationSeconds: durationSeconds,
     };
   })
-  .filter(item => item.durationSeconds >= 60 && item.durationSeconds < 360)
-  .filter(item => !item.title.toLowerCase().includes('#shorts'))
-  .slice(0, 20);
+    .filter(item => item.durationSeconds >= 60 && item.durationSeconds < 360)
+    .filter(item => !item.title.toLowerCase().includes('#shorts'))
+    .slice(0, 20);
 }
 
 async function searchVideos(query, options = {}) {
@@ -337,13 +337,13 @@ async function searchVideos(query, options = {}) {
 
   let rawResults = [];
   const isNative = window.Capacitor?.isNativePlatform?.();
-  
+
   if (isNative) {
     rawResults = await performNativeYoutubeSearch(query);
   } else {
     const response = await fetch(`${getApiBaseUrl()}/api/search?q=${encodeURIComponent(query)}`);
     const data = await response.json();
-  
+
     if (!response.ok) {
       throw new Error(data.error || 'Search failed.');
     }
@@ -355,7 +355,7 @@ async function searchVideos(query, options = {}) {
     const cleanTitle = (item.title || '').replace(/\bvideo\b/gi, '').replace(/\s{2,}/g, ' ').trim();
     return { ...item, title: cleanTitle };
   });
-  
+
   state.cache.set(normalizedQuery, results);
 
   if (options.cacheAsTrending) {
@@ -375,7 +375,7 @@ async function preloadTrending() {
   try {
     const cached = localStorage.getItem('monify_trending');
     const cacheTime = localStorage.getItem('monify_trending_time');
-    
+
     // Use cache if less than 2 hours old
     if (cached && cacheTime && (Date.now() - parseInt(cacheTime, 10) < 2 * 60 * 60 * 1000)) {
       state.trendingResults = JSON.parse(cached);
@@ -387,7 +387,7 @@ async function preloadTrending() {
       cacheAsTrending: false, // We'll handle caching manually here
       limit: 50,
     });
-    
+
     state.trendingResults = results;
     localStorage.setItem('monify_trending', JSON.stringify(results));
     localStorage.setItem('monify_trending_time', Date.now().toString());
@@ -474,7 +474,7 @@ async function startPlayback() {
 
 function stopPlayback(silent = false) {
   elements.audio.pause();
-  
+
   // CRITICAL FIX: Murder the HTTP connection to prevent server leak
   if (elements.audio.src) {
     elements.audio.removeAttribute('src');
