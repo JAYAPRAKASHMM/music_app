@@ -10,3 +10,4 @@ api.apikey
 .env*
 !android/app/src/main/assets/bin/
 !android/app/src/main/assets/bin/*
+!.github/workflows/android.yml
