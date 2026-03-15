@@ -9,18 +9,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22
 
-      - run: npm install
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
 
-      - run: npx cap sync
+      - name: Install dependencies
+        run: npm install
 
-      - name: Build APK
+      - name: Sync Capacitor
+        run: npx cap sync
+
+      - name: Build Android APK
         run: |
           cd android
           chmod +x gradlew
@@ -30,4 +39,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: monify-apk
-          path: android/app/build/outputs/apk/release/
+          path: android/app/build/outputs/apk/release/app-release.apk
