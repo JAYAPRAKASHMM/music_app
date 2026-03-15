@@ -20,14 +20,10 @@ public class LocalBackendPlugin extends Plugin {
         new Thread(() -> {
             try {
                 YoutubeDL.getInstance().init(getContext());
-                Log.d(TAG, "YoutubeDL initialized");
-
-                Log.d(TAG, "Updating yt-dlp...");
-                YoutubeDL.UpdateStatus status = YoutubeDL.getInstance().updateYoutubeDL(getContext());
-                Log.d(TAG, "yt-dlp update status: " + status.toString());
+                Log.d(TAG, "YoutubeDL initialized successfully");
 
                 JSObject result = new JSObject();
-                result.put("status", status.toString());
+                result.put("status", "DONE");
                 call.resolve(result);
             } catch (Exception e) {
                 Log.e(TAG, "initYoutubeDL failed: " + e.getMessage());
