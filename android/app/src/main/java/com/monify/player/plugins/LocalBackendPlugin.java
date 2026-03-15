@@ -38,7 +38,7 @@ public class LocalBackendPlugin extends Plugin {
                 ProcessBuilder pb = new ProcessBuilder(
                         ytDlpPath,
                         "-f",
-                        "bestaudio",
+                        "bestaudio[ext=m4a]",
                         "-g",
                         url
                 );
