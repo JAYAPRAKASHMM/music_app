@@ -161,7 +161,7 @@ async function resolveSongMetadata(video) {
   }
 
   // If native, skip /api/resolve because performNativeYoutubeSearch already gets high-res thumbs
-  const isNative = window.Capacitor?.isNativePlatform?.();
+  const isNative = !!(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalBackendPlugin);
   if (isNative) {
     return video;
   }
@@ -441,7 +441,13 @@ function buildMediaUrl(endpoint, extraParams = {}) {
 }
 
 async function resolveStreamUrl(videoUrl) {
-  const isNative = window.Capacitor?.isNativePlatform?.() && window.Capacitor?.Plugins?.LocalBackendPlugin;
+  console.log('[DEBUG] Validating plugin invocation:');
+  console.log('window.Capacitor:', !!window.Capacitor, window.Capacitor);
+  console.log('window.Capacitor.Plugins:', window.Capacitor ? !!window.Capacitor.Plugins : false, window.Capacitor?.Plugins);
+  console.log('window.Capacitor.Plugins.LocalBackendPlugin:', window.Capacitor?.Plugins ? !!window.Capacitor.Plugins.LocalBackendPlugin : false);
+
+  const isNative = !!(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalBackendPlugin);
+  
   if (isNative) {
     console.log('[DEBUG] resolveStreamUrl: Native plugin detected. Requesting stream for:', videoUrl);
     try {
@@ -449,13 +455,19 @@ async function resolveStreamUrl(videoUrl) {
         url: videoUrl
       });
       console.log('[DEBUG] resolveStreamUrl: Native plugin returned result:', result);
-      return typeof result.url === 'string' ? result.url.trim() : null;
+      
+      const trimmedUrl = typeof result.url === 'string' ? result.url.trim() : null;
+      if (!trimmedUrl) {
+        throw new Error('LocalBackendPlugin returned an empty or invalid stream URL string');
+      }
+      return trimmedUrl;
     } catch (e) {
-      console.error('LocalBackendPlugin getStreamUrl failed:', e);
-      throw Error('Native yt-dlp binary failed to extract URL');
+      console.error('[ERROR] LocalBackendPlugin getStreamUrl failed:', e);
+      throw e; // Pass on the actual error to prevent fallback to /api/stream
     }
   }
 
+  console.warn('[WARN] LocalBackendPlugin not detected! Falling back to /api/stream');
   return buildMediaUrl('/api/stream');
 }
 
@@ -470,6 +482,7 @@ async function startPlayback() {
   setPlayerStatus('Starting stream...');
 
   try {
+    console.log('[DEBUG] startPlayback: Requesting resolution for url:', state.selectedVideo.url);
     const nextSrc = await resolveStreamUrl(state.selectedVideo.url);
     console.log('[DEBUG] startPlayback: Next audio src assigned:', nextSrc);
     
