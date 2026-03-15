@@ -714,3 +714,43 @@ elements.audio.addEventListener('ended', () => {
 selectVideo(DEFAULT_SONG, { keepSearchOpen: true });
 preloadTrending();
 updateProgressUi(0);
+
+// ── Native startup: update yt-dlp with a visible toast ──────────────────────
+function showToast(msg, duration = 0) {
+  let toast = document.getElementById('yt-dlp-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'yt-dlp-toast';
+    Object.assign(toast.style, {
+      position: 'fixed', bottom: '24px', left: '50%',
+      transform: 'translateX(-50%)',
+      background: 'rgba(30,30,40,0.92)', color: '#e0e0ff',
+      padding: '10px 22px', borderRadius: '24px',
+      fontSize: '13px', fontWeight: '500', letterSpacing: '0.3px',
+      boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+      backdropFilter: 'blur(8px)',
+      zIndex: '9999', transition: 'opacity 0.4s',
+      pointerEvents: 'none',
+    });
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  if (duration > 0) {
+    setTimeout(() => { toast.style.opacity = '0'; }, duration);
+  }
+}
+
+(async () => {
+  const isNative = !!(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalBackendPlugin);
+  if (!isNative) return;
+  showToast('⏳ Updating player engine...');
+  try {
+    const result = await window.Capacitor.Plugins.LocalBackendPlugin.initYoutubeDL();
+    console.log('[INIT] YoutubeDL init result:', result);
+    showToast('✅ Player ready!', 2500);
+  } catch (e) {
+    console.warn('[INIT] YoutubeDL init failed (will still try):', e);
+    showToast('⚠️ Update failed – playback may be limited', 3000);
+  }
+})();

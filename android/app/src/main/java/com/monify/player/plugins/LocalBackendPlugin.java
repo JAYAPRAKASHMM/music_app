@@ -14,29 +14,26 @@ import com.yausername.youtubedl_android.YoutubeDLResponse;
 @CapacitorPlugin(name = "LocalBackendPlugin")
 public class LocalBackendPlugin extends Plugin {
     private static final String TAG = "LocalBackendPlugin";
-    private static boolean initialized = false;
 
-    @Override
-    public void load() {
-        super.load();
-        if (!initialized) {
-            new Thread(() -> {
-                try {
-                    YoutubeDL.getInstance().init(getContext());
-                    Log.d(TAG, "YoutubeDL initialized successfully");
-                    initialized = true;
+    @PluginMethod
+    public void initYoutubeDL(PluginCall call) {
+        new Thread(() -> {
+            try {
+                YoutubeDL.getInstance().init(getContext());
+                Log.d(TAG, "YoutubeDL initialized");
 
-                    // Update yt-dlp to the latest version on first launch to fix YouTube extraction issues
-                    Log.d(TAG, "Updating yt-dlp to latest version...");
-                    YoutubeDL.UpdateStatus status = YoutubeDL.getInstance().updateYoutubeDL(getContext());
-                    Log.d(TAG, "yt-dlp update status: " + status.toString());
-                } catch (Exception e) {
-                    Log.e(TAG, "YoutubeDL init/update failed: " + e.getMessage());
-                    // Still mark as initialized so the plugin can still attempt to work
-                    initialized = true;
-                }
-            }).start();
-        }
+                Log.d(TAG, "Updating yt-dlp...");
+                YoutubeDL.UpdateStatus status = YoutubeDL.getInstance().updateYoutubeDL(getContext());
+                Log.d(TAG, "yt-dlp update status: " + status.toString());
+
+                JSObject result = new JSObject();
+                result.put("status", status.toString());
+                call.resolve(result);
+            } catch (Exception e) {
+                Log.e(TAG, "initYoutubeDL failed: " + e.getMessage());
+                call.reject("initYoutubeDL failed: " + e.getMessage());
+            }
+        }).start();
     }
 
     @PluginMethod
