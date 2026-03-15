@@ -8,6 +8,7 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import org.schabi.newpipe.extractor.MediaFormat;
 import org.schabi.newpipe.extractor.NewPipe;
 import org.schabi.newpipe.extractor.ServiceList;
 import org.schabi.newpipe.extractor.downloader.Downloader;
@@ -75,8 +76,7 @@ public class LocalBackendPlugin extends Plugin {
                 String streamUrl = null;
                 for (AudioStream stream : audioStreams) {
                     String content = stream.getContent();
-                    if (content != null && stream.getFormatName() != null
-                            && stream.getFormatName().toLowerCase().contains("m4a")) {
+                    if (content != null && stream.getFormat() == MediaFormat.M4A) {
                         streamUrl = content;
                         break;
                     }
@@ -122,7 +122,7 @@ public class LocalBackendPlugin extends Plugin {
                 }
             }
 
-            byte[] body = request.body();
+            byte[] body = request.httpBody();
             if (body != null) {
                 conn.setDoOutput(true);
                 conn.setRequestMethod("POST");
