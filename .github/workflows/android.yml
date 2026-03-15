@@ -4,6 +4,8 @@ on:
   push:
     branches: [ mobile_app ]
 
+# This environment variable opts GitHub actions into Node 24 runtime
+# to address the warning about Node 20 deprecation.
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -12,36 +14,47 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
+        # NOTE:
+        # GitHub warned that some actions still run on Node20 internally.
+        # We opted into Node24 above using FORCE_JAVASCRIPT_ACTIONS_TO_NODE24.
 
+      # Setup Node (Capacitor requires Node >=22)
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
+      # Setup Java (Capacitor Android requires Java 21)
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
 
+      # Install project dependencies
       - name: Install dependencies
         run: |
           npm install
           npm install @capacitor/core @capacitor/cli
 
+      # Sync Capacitor project
       - name: Sync Capacitor
         run: npx cap sync
 
+      # Build DEBUG APK
+      # Debug builds are automatically signed so they install on phones.
       - name: Build Android APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease --stacktrace
+          ./gradlew assembleDebug --stacktrace
 
-      - name: Upload APK
+      # Upload the generated APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: monify-apk
-          path: android/app/build/outputs/apk/release/
+          path: android/app/build/outputs/apk/debug/
