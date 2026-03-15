@@ -7,14 +7,28 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
-
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStreamReader;
+import com.yausername.youtubedl_android.YoutubeDL;
+import com.yausername.youtubedl_android.YoutubeDLRequest;
+import com.yausername.youtubedl_android.YoutubeDLResponse;
 
 @CapacitorPlugin(name = "LocalBackendPlugin")
 public class LocalBackendPlugin extends Plugin {
     private static final String TAG = "LocalBackendPlugin";
+    private static boolean initialized = false;
+
+    @Override
+    public void load() {
+        super.load();
+        if (!initialized) {
+            try {
+                YoutubeDL.getInstance().init(getContext());
+                Log.d(TAG, "YoutubeDL initialized successfully");
+                initialized = true;
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to initialize YoutubeDL: " + e.getMessage());
+            }
+        }
+    }
 
     @PluginMethod
     public void getStreamUrl(PluginCall call) {
@@ -26,66 +40,28 @@ public class LocalBackendPlugin extends Plugin {
 
         getBridge().execute(() -> {
             try {
-                String nativeLibraryDir = getContext().getApplicationInfo().nativeLibraryDir;
-                String ytDlpPath = new File(nativeLibraryDir, "libytdlp.so").getAbsolutePath();
-                
-                if (!new File(ytDlpPath).exists()) {
-                    call.reject("yt-dlp binary (libytdlp.so) not found in nativeLibraryDir.");
+                Log.d(TAG, "Requesting stream URL for: " + url);
+
+                YoutubeDLRequest request = new YoutubeDLRequest(url);
+                request.addOption("-f", "bestaudio[ext=m4a]/bestaudio");
+                request.addOption("-g");
+
+                YoutubeDLResponse response = YoutubeDL.getInstance().execute(request, null, null);
+                String streamUrl = response.getOut().trim();
+
+                Log.d(TAG, "Resolved stream URL: " + streamUrl);
+
+                if (streamUrl.isEmpty()) {
+                    call.reject("yt-dlp returned empty stream URL");
                     return;
                 }
 
-                Log.d(TAG, "Executing yt-dlp binary at: " + ytDlpPath);
-                ProcessBuilder pb = new ProcessBuilder(
-                        ytDlpPath,
-                        "-f",
-                        "bestaudio[ext=m4a]",
-                        "-g",
-                        url
-                );
-                
-                Log.d(TAG, "Running command: " + String.join(" ", pb.command()));
-
-                Process process = pb.start();
-
-                // Read stdout
-                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-                String streamUrl = null;
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    Log.d(TAG, "yt-dlp stdout line: " + line);
-                    if (streamUrl == null && (line.startsWith("http://") || line.startsWith("https://"))) {
-                        streamUrl = line;
-                        break; // Stop reading stdout once the first stream URL is found
-                    }
-                }
-
-                // Read stderr for logging
-                BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-                StringBuilder errorOutput = new StringBuilder();
-                String errLine;
-                while ((errLine = errorReader.readLine()) != null) {
-                    errorOutput.append(errLine).append("\n");
-                }
-                
-                if (errorOutput.length() > 0) {
-                    Log.d(TAG, "yt-dlp stderr: " + errorOutput.toString());
-                }
-
-                int exitCode = process.waitFor();
-                process.destroy(); // Prevent process leaks
-
-                if (exitCode != 0 || streamUrl == null) {
-                    Log.e(TAG, "yt-dlp failed with exit code " + exitCode + ". Error: " + errorOutput.toString());
-                    call.reject("Failed to resolve stream URL");
-                } else {
-                    Log.i(TAG, "Successfully extracted stream URL: " + streamUrl);
-                    JSObject result = new JSObject();
-                    result.put("url", streamUrl);
-                    call.resolve(result);
-                }
+                JSObject result = new JSObject();
+                result.put("url", streamUrl);
+                call.resolve(result);
 
             } catch (Exception e) {
-                Log.e(TAG, "Error executing yt-dlp", e);
+                Log.e(TAG, "Failed to resolve stream URL: " + e.getMessage());
                 call.reject("Failed to resolve stream URL: " + e.getMessage());
             }
         });
