@@ -8,7 +8,5 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(com.monify.player.plugins.LocalBackendPlugin.class);
         super.onCreate(savedInstanceState);
-        
-        BinaryExtractor.extractBinaries(this);
     }
 }

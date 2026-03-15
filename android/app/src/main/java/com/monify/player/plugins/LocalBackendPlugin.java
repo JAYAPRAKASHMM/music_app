@@ -8,9 +8,8 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-import com.monify.player.BinaryExtractor;
-
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
 
 @CapacitorPlugin(name = "LocalBackendPlugin")
@@ -27,7 +26,14 @@ public class LocalBackendPlugin extends Plugin {
 
         getBridge().execute(() -> {
             try {
-                String ytDlpPath = BinaryExtractor.getYtDlpPath(getContext());
+                String nativeLibraryDir = getContext().getApplicationInfo().nativeLibraryDir;
+                String ytDlpPath = new File(nativeLibraryDir, "libytdlp.so").getAbsolutePath();
+                
+                if (!new File(ytDlpPath).exists()) {
+                    call.reject("yt-dlp binary (libytdlp.so) not found in nativeLibraryDir.");
+                    return;
+                }
+
                 Log.d(TAG, "Executing yt-dlp binary at: " + ytDlpPath);
                 ProcessBuilder pb = new ProcessBuilder(
                         ytDlpPath,
