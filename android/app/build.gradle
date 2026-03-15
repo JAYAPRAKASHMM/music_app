@@ -43,8 +43,8 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
-    implementation 'com.github.yausername:youtubedl-android:latest.release'
-    implementation 'com.github.yausername:ffmpeg-android:latest.release'
+    implementation 'com.github.yausername.youtubedl-android:library:latest.release'
+    implementation 'com.github.yausername.youtubedl-android:ffmpeg:latest.release'
 }
 
 apply from: 'capacitor.build.gradle'
