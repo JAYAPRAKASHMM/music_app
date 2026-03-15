@@ -683,10 +683,15 @@ elements.audio.addEventListener('pause', () => {
   }
 });
 
-elements.audio.addEventListener('error', () => {
+elements.audio.addEventListener('error', (e) => {
+  const mediaError = elements.audio.error;
+  console.error(`[AUDIO ERROR EVENT] Code: ${mediaError ? mediaError.code : 'Unknown'}, Message: ${mediaError ? mediaError.message : 'Unknown'}`, e);
   stopPlayback(true);
   setPlayerStatus('Stream error. Try another song.');
 });
+
+elements.audio.addEventListener('loadedmetadata', () => console.log('[AUDIO EVENT] loadedmetadata triggered.'));
+elements.audio.addEventListener('canplay', () => console.log('[AUDIO EVENT] canplay triggered. Audio is ready.'));
 
 elements.audio.addEventListener('ended', () => {
   setPlaying(false);
