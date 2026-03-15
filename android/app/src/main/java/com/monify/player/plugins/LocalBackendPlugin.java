@@ -28,7 +28,7 @@ public class LocalBackendPlugin extends Plugin {
 
                     // Update yt-dlp to the latest version on first launch to fix YouTube extraction issues
                     Log.d(TAG, "Updating yt-dlp to latest version...");
-                    YoutubeDL.UpdateStatus status = YoutubeDL.getInstance().updateYoutubeDL(getContext(), YoutubeDL.UpdateChannel.STABLE);
+                    YoutubeDL.UpdateStatus status = YoutubeDL.getInstance().updateYoutubeDL(getContext());
                     Log.d(TAG, "yt-dlp update status: " + status.toString());
                 } catch (Exception e) {
                     Log.e(TAG, "YoutubeDL init/update failed: " + e.getMessage());
