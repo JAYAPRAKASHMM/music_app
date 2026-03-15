@@ -6,4 +6,5 @@ window.MONIFY_CONFIG = {
     durationSeconds: 120,
     note: 'JP likes this song',
   },
+  youtubeApiKey: 'YOUR_YOUTUBE_API_KEY_HERE', // Populate your API key for native Android searches
 };
