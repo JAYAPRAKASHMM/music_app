@@ -160,6 +160,12 @@ async function resolveSongMetadata(video) {
     };
   }
 
+  // If native, skip /api/resolve because performNativeYoutubeSearch already gets high-res thumbs
+  const isNative = window.Capacitor?.isNativePlatform?.();
+  if (isNative) {
+    return video;
+  }
+
   try {
     const response = await fetch(`${getApiBaseUrl()}/api/resolve?url=${encodeURIComponent(video.url)}`);
     const data = await response.json();
@@ -275,7 +281,7 @@ async function performNativeYoutubeSearch(query) {
     q: query,
     part: 'snippet',
     type: 'video',
-    maxResults: '50',
+    maxResults: '20',
     videoEmbeddable: 'true',
     safeSearch: 'moderate',
   });
@@ -437,10 +443,17 @@ function buildMediaUrl(endpoint, extraParams = {}) {
 async function resolveStreamUrl(videoUrl) {
   const isNative = window.Capacitor?.isNativePlatform?.() && window.Capacitor?.Plugins?.LocalBackendPlugin;
   if (isNative) {
-    const result = await window.Capacitor.Plugins.LocalBackendPlugin.getStreamUrl({
-      url: videoUrl
-    });
-    return result.url;
+    console.log('[DEBUG] resolveStreamUrl: Native plugin detected. Requesting stream for:', videoUrl);
+    try {
+      const result = await window.Capacitor.Plugins.LocalBackendPlugin.getStreamUrl({
+        url: videoUrl
+      });
+      console.log('[DEBUG] resolveStreamUrl: Native plugin returned result:', result);
+      return typeof result.url === 'string' ? result.url.trim() : null;
+    } catch (e) {
+      console.error('LocalBackendPlugin getStreamUrl failed:', e);
+      throw Error('Native yt-dlp binary failed to extract URL');
+    }
   }
 
   return buildMediaUrl('/api/stream');
@@ -451,11 +464,19 @@ async function startPlayback() {
     return;
   }
 
+  console.log('[DEBUG] startPlayback: Selected video:', state.selectedVideo);
+
   setLoading(true);
   setPlayerStatus('Starting stream...');
 
   try {
     const nextSrc = await resolveStreamUrl(state.selectedVideo.url);
+    console.log('[DEBUG] startPlayback: Next audio src assigned:', nextSrc);
+    
+    if (!nextSrc) {
+      throw new Error('Received empty stream URL');
+    }
+
     if (elements.audio.src !== nextSrc) {
       elements.audio.src = nextSrc;
     }

@@ -28,6 +28,7 @@ public class LocalBackendPlugin extends Plugin {
         getBridge().execute(() -> {
             try {
                 String ytDlpPath = BinaryExtractor.getYtDlpPath(getContext());
+                Log.d(TAG, "Executing yt-dlp binary at: " + ytDlpPath);
                 ProcessBuilder pb = new ProcessBuilder(
                         ytDlpPath,
                         "-f",
@@ -35,6 +36,8 @@ public class LocalBackendPlugin extends Plugin {
                         "-g",
                         url
                 );
+                
+                Log.d(TAG, "Running command: " + String.join(" ", pb.command()));
 
                 Process process = pb.start();
 
@@ -43,6 +46,7 @@ public class LocalBackendPlugin extends Plugin {
                 String streamUrl = null;
                 String line;
                 while ((line = reader.readLine()) != null) {
+                    Log.d(TAG, "yt-dlp stdout line: " + line);
                     if (streamUrl == null && (line.startsWith("http://") || line.startsWith("https://"))) {
                         streamUrl = line;
                         break; // Stop reading stdout once the first stream URL is found
@@ -68,6 +72,7 @@ public class LocalBackendPlugin extends Plugin {
                     Log.e(TAG, "yt-dlp failed with exit code " + exitCode + ". Error: " + errorOutput.toString());
                     call.reject("Failed to resolve stream URL");
                 } else {
+                    Log.i(TAG, "Successfully extracted stream URL: " + streamUrl);
                     JSObject result = new JSObject();
                     result.put("url", streamUrl);
                     call.resolve(result);
