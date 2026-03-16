@@ -4,7 +4,9 @@ const TRENDING_QUERY = 'tamil trending songs';
 const FALLBACK_THUMBNAIL = '/assets/logo.svg';
 const DEFAULT_SONG = window.MONIFY_CONFIG?.defaultSong || {
   id: 'n_fA0hU5-a4',
-  url: 'https://youtu.be/n_fA0hU5-a4?si=3EZygpyeIBat5fJw',
+  title: 'Pathikichu',
+  channelTitle: 'Anirudh Ravichander',
+  url: 'https://www.youtube.com/watch?v=n_fA0hU5-a4',
   thumbnail: 'https://img.youtube.com/vi/n_fA0hU5-a4/hqdefault.jpg',
   durationSeconds: 120,
   note: 'JP likes this song',
@@ -442,21 +444,64 @@ function buildMediaUrl(endpoint, extraParams = {}) {
   return `${getApiBaseUrl()}${endpoint}?${params.toString()}`;
 }
 
+function normalizeYoutubeUrl(videoUrl) {
+  try {
+    const parsed = new URL(videoUrl);
+    const host = parsed.hostname.replace(/^www\./, '');
+
+    if (host === 'youtu.be') {
+      const id = parsed.pathname.replace(/^\/+/,'').split('/')[0];
+      if (id) {
+        return `https://www.youtube.com/watch?v=${id}`;
+      }
+    }
+
+    const id = parsed.searchParams.get('v');
+    if (id) {
+      return `https://www.youtube.com/watch?v=${id}`;
+    }
+  } catch (error) {
+    console.warn('Could not normalize YouTube URL:', error);
+  }
+
+  return videoUrl;
+}
+
+function shouldRetryNativeResolve(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return message.includes('no audio streams found') || message.includes('page needs to be reloaded');
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function requestNativeStreamUrl(videoUrl) {
+  const result = await window.Capacitor.Plugins.LocalBackendPlugin.getStreamUrl({
+    url: normalizeYoutubeUrl(videoUrl)
+  });
+
+  const trimmedUrl = typeof result.url === 'string' ? result.url.trim() : null;
+  if (!trimmedUrl) {
+    throw new Error('LocalBackendPlugin returned an empty or invalid stream URL string');
+  }
+
+  return trimmedUrl;
+}
+
 async function resolveStreamUrl(videoUrl) {
   if (hasNativeBackend()) {
     try {
-      const result = await window.Capacitor.Plugins.LocalBackendPlugin.getStreamUrl({
-        url: videoUrl
-      });
-
-      const trimmedUrl = typeof result.url === 'string' ? result.url.trim() : null;
-      if (!trimmedUrl) {
-        throw new Error('LocalBackendPlugin returned an empty or invalid stream URL string');
+      return await requestNativeStreamUrl(videoUrl);
+    } catch (error) {
+      if (shouldRetryNativeResolve(error)) {
+        console.warn('Retrying transient native stream resolution failure:', error);
+        await wait(250);
+        return requestNativeStreamUrl(videoUrl);
       }
-      return trimmedUrl;
-    } catch (e) {
-      console.error('LocalBackendPlugin getStreamUrl failed:', e);
-      throw e;
+
+      console.error('LocalBackendPlugin getStreamUrl failed:', error);
+      throw error;
     }
   }
 
@@ -602,7 +647,7 @@ async function downloadSelectedVideo() {
 
     try {
       const result = await window.Capacitor.Plugins.LocalBackendPlugin.download({
-        url: state.selectedVideo.url,
+        url: normalizeYoutubeUrl(state.selectedVideo.url),
         title: fileTitle,
       });
       const downloadLabel = result?.filename ? `: ${result.filename}` : '';
