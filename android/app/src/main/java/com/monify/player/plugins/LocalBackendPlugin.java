@@ -1,5 +1,9 @@
 package com.monify.player.plugins;
 
+import android.app.DownloadManager;
+import android.content.Context;
+import android.net.Uri;
+import android.os.Environment;
 import android.util.Log;
 
 import com.getcapacitor.JSObject;
@@ -25,35 +29,30 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @CapacitorPlugin(name = "LocalBackendPlugin")
 public class LocalBackendPlugin extends Plugin {
     private static final String TAG = "LocalBackendPlugin";
-    // volatile ensures the init flag is visible across threads
+    private static final String USER_AGENT =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+            "AppleWebKit/537.36 (KHTML, like Gecko) " +
+            "Chrome/124.0.0.0 Safari/537.36";
     private static volatile boolean initialized = false;
 
     @Override
     public void load() {
         super.load();
-        // NewPipe.init() only sets the downloader (no I/O), safe to call on main thread
         if (!initialized) {
             try {
                 NewPipe.init(new SimpleDownloader());
                 initialized = true;
                 Log.d(TAG, "NewPipeExtractor initialized");
             } catch (Exception e) {
-                Log.e(TAG, "NewPipeExtractor init failed: " + e.getMessage());
+                Log.e(TAG, "NewPipeExtractor init failed", e);
             }
         }
-    }
-
-    /** Stub so JS initYoutubeDL() toast resolves immediately */
-    @PluginMethod
-    public void initYoutubeDL(PluginCall call) {
-        JSObject result = new JSObject();
-        result.put("status", "DONE");
-        call.resolve(result);
     }
 
     @PluginMethod
@@ -69,67 +68,176 @@ public class LocalBackendPlugin extends Plugin {
             return;
         }
 
-        // getBridge().execute() uses a thread-pool executor — safe for network I/O
-        final String finalUrl = videoUrl;
         getBridge().execute(() -> {
             try {
-                Log.d(TAG, "Extracting stream for: " + finalUrl);
-                StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, finalUrl);
-                List<AudioStream> audioStreams = info.getAudioStreams();
-
-                if (audioStreams == null || audioStreams.isEmpty()) {
-                    call.reject("No audio streams found for: " + finalUrl);
-                    return;
-                }
-
-                // Walk the stream list: prefer m4a (most compatible with Android WebView)
-                // Only accept streams that are direct URLs (not DASH manifests)
-                String streamUrl = null;
-
-                // Pass 1: m4a direct URL
-                for (AudioStream stream : audioStreams) {
-                    if (stream.isUrl() && stream.getContent() != null
-                            && stream.getFormat() == MediaFormat.M4A) {
-                        streamUrl = stream.getContent();
-                        break;
-                    }
-                }
-
-                // Pass 2: any direct URL stream as fallback
-                if (streamUrl == null) {
-                    for (AudioStream stream : audioStreams) {
-                        if (stream.isUrl() && stream.getContent() != null
-                                && !stream.getContent().isEmpty()) {
-                            streamUrl = stream.getContent();
-                            break;
-                        }
-                    }
-                }
-
-                if (streamUrl == null || streamUrl.isEmpty()) {
-                    call.reject("No direct stream URL found (all streams are manifests)");
-                    return;
-                }
-
-                Log.d(TAG, "Resolved: " + streamUrl.substring(0, Math.min(100, streamUrl.length())));
+                AudioSelection selection = resolvePreferredAudioStream(videoUrl);
                 JSObject result = new JSObject();
-                result.put("url", streamUrl);
+                result.put("url", selection.url);
+                result.put("mimeType", selection.mimeType);
+                result.put("extension", selection.extension);
                 call.resolve(result);
-
             } catch (Exception e) {
                 String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-                Log.e(TAG, "getStreamUrl failed: " + msg);
+                Log.e(TAG, "getStreamUrl failed", e);
                 call.reject("Failed to resolve stream URL: " + msg);
             }
         });
     }
 
-    /** HttpURLConnection-based downloader for NewPipeExtractor */
+    @PluginMethod
+    public void download(PluginCall call) {
+        String videoUrl = call.getString("url");
+        if (videoUrl == null || videoUrl.isEmpty()) {
+            call.reject("Must provide a video url");
+            return;
+        }
+
+        if (!initialized) {
+            call.reject("NewPipeExtractor not initialized yet");
+            return;
+        }
+
+        final String requestedTitle = call.getString("title", "song");
+        getBridge().execute(() -> {
+            try {
+                AudioSelection selection = resolvePreferredAudioStream(videoUrl);
+                String safeTitle = sanitizeFileName(requestedTitle);
+                String fileName = safeTitle + "." + selection.extension;
+
+                DownloadManager downloadManager =
+                        (DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
+                if (downloadManager == null) {
+                    call.reject("Android DownloadManager is unavailable");
+                    return;
+                }
+
+                DownloadManager.Request request = new DownloadManager.Request(Uri.parse(selection.url));
+                request.setTitle(safeTitle);
+                request.setDescription("Monify audio download");
+                request.setMimeType(selection.mimeType);
+                request.addRequestHeader("User-Agent", USER_AGENT);
+                request.setNotificationVisibility(
+                        DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                request.setAllowedOverMetered(true);
+                request.setAllowedOverRoaming(true);
+                request.setVisibleInDownloadsUi(true);
+                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+
+                long downloadId = downloadManager.enqueue(request);
+
+                JSObject result = new JSObject();
+                result.put("downloadId", downloadId);
+                result.put("filename", fileName);
+                result.put("mimeType", selection.mimeType);
+                call.resolve(result);
+            } catch (Exception e) {
+                String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                Log.e(TAG, "download failed", e);
+                call.reject("Failed to start download: " + msg);
+            }
+        });
+    }
+
+    private AudioSelection resolvePreferredAudioStream(String videoUrl) throws Exception {
+        Log.d(TAG, "Extracting stream for: " + videoUrl);
+        StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, videoUrl);
+        List<AudioStream> audioStreams = info.getAudioStreams();
+
+        if (audioStreams == null || audioStreams.isEmpty()) {
+            throw new IllegalStateException("No audio streams found for: " + videoUrl);
+        }
+
+        AudioStream selectedStream = null;
+
+        for (AudioStream stream : audioStreams) {
+            if (stream.isUrl() && stream.getContent() != null
+                    && stream.getFormat() == MediaFormat.M4A) {
+                selectedStream = stream;
+                break;
+            }
+        }
+
+        if (selectedStream == null) {
+            for (AudioStream stream : audioStreams) {
+                if (stream.isUrl() && stream.getContent() != null
+                        && !stream.getContent().isEmpty()) {
+                    selectedStream = stream;
+                    break;
+                }
+            }
+        }
+
+        if (selectedStream == null) {
+            throw new IllegalStateException("No direct stream URL found (all streams are manifests)");
+        }
+
+        String streamUrl = selectedStream.getContent();
+        String extension = inferExtension(selectedStream.getFormat());
+        String mimeType = inferMimeType(extension);
+
+        Log.d(TAG, "Resolved audio stream format=" + extension + " url="
+                + streamUrl.substring(0, Math.min(100, streamUrl.length())));
+
+        return new AudioSelection(streamUrl, extension, mimeType);
+    }
+
+    private static String sanitizeFileName(String rawValue) {
+        String normalized = String.valueOf(rawValue == null ? "song" : rawValue)
+                .replaceAll("[<>:\"/\\\\|?*\\x00-\\x1F]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+
+        if (normalized.isEmpty()) {
+            return "song";
+        }
+
+        return normalized.length() > 120 ? normalized.substring(0, 120).trim() : normalized;
+    }
+
+    private static String inferExtension(MediaFormat format) {
+        String normalized = String.valueOf(format).toLowerCase(Locale.US);
+        if (normalized.contains("m4a")) {
+            return "m4a";
+        }
+        if (normalized.contains("webm") || normalized.contains("weba")) {
+            return "webm";
+        }
+        if (normalized.contains("opus")) {
+            return "opus";
+        }
+        if (normalized.contains("mp3")) {
+            return "mp3";
+        }
+        return "m4a";
+    }
+
+    private static String inferMimeType(String extension) {
+        switch (extension) {
+            case "webm":
+                return "audio/webm";
+            case "opus":
+                return "audio/ogg";
+            case "mp3":
+                return "audio/mpeg";
+            case "m4a":
+            default:
+                return "audio/mp4";
+        }
+    }
+
+    private static final class AudioSelection {
+        final String url;
+        final String extension;
+        final String mimeType;
+
+        AudioSelection(String url, String extension, String mimeType) {
+            this.url = url;
+            this.extension = extension;
+            this.mimeType = mimeType;
+        }
+    }
+
     private static class SimpleDownloader extends Downloader {
-        private static final String UA =
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-                "AppleWebKit/537.36 (KHTML, like Gecko) " +
-                "Chrome/124.0.0.0 Safari/537.36";
         private static final int TIMEOUT_MS = 15_000;
 
         @Override
@@ -140,13 +248,10 @@ public class LocalBackendPlugin extends Plugin {
             conn.setConnectTimeout(TIMEOUT_MS);
             conn.setReadTimeout(TIMEOUT_MS);
 
-            // Set HTTP method (GET, POST, HEAD, etc.)
             String method = request.httpMethod();
             conn.setRequestMethod(method != null ? method : "GET");
+            conn.setRequestProperty("User-Agent", USER_AGENT);
 
-            conn.setRequestProperty("User-Agent", UA);
-
-            // Copy request headers — skip null keys (HttpURLConnection rejects them)
             for (Map.Entry<String, List<String>> h : request.headers().entrySet()) {
                 if (h.getKey() == null) continue;
                 for (String v : h.getValue()) {
@@ -154,7 +259,6 @@ public class LocalBackendPlugin extends Plugin {
                 }
             }
 
-            // Send body for POST requests (v0.24.2 api: dataToSend())
             byte[] body = request.dataToSend();
             if (body != null && body.length > 0) {
                 conn.setDoOutput(true);
@@ -164,7 +268,6 @@ public class LocalBackendPlugin extends Plugin {
             conn.connect();
             int code = conn.getResponseCode();
 
-            // Read response body with explicit UTF-8
             InputStream is = code < 400 ? conn.getInputStream() : conn.getErrorStream();
             String responseBody = "";
             if (is != null) {
@@ -177,7 +280,6 @@ public class LocalBackendPlugin extends Plugin {
                 }
             }
 
-            // Filter null keys from response headers to prevent NPE in NewPipe
             Map<String, List<String>> filteredHeaders = new HashMap<>();
             for (Map.Entry<String, List<String>> e : conn.getHeaderFields().entrySet()) {
                 if (e.getKey() != null) {

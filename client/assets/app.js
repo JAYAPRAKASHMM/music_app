@@ -56,6 +56,10 @@ const state = {
   metadataCache: new Map(),
 };
 
+function hasNativeBackend() {
+  return !!window.Capacitor?.Plugins?.LocalBackendPlugin;
+}
+
 function getApiBaseUrl() {
   return `${window.location.protocol}//${window.location.host}`;
 }
@@ -161,8 +165,7 @@ async function resolveSongMetadata(video) {
   }
 
   // If native, skip /api/resolve because performNativeYoutubeSearch already gets high-res thumbs
-  const isNative = !!(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalBackendPlugin);
-  if (isNative) {
+  if (hasNativeBackend()) {
     return video;
   }
 
@@ -342,9 +345,8 @@ async function searchVideos(query, options = {}) {
   }
 
   let rawResults = [];
-  const isNative = window.Capacitor?.isNativePlatform?.();
 
-  if (isNative) {
+  if (window.Capacitor?.isNativePlatform?.()) {
     rawResults = await performNativeYoutubeSearch(query);
   } else {
     const response = await fetch(`${getApiBaseUrl()}/api/search?q=${encodeURIComponent(query)}`);
@@ -441,33 +443,23 @@ function buildMediaUrl(endpoint, extraParams = {}) {
 }
 
 async function resolveStreamUrl(videoUrl) {
-  console.log('[DEBUG] Validating plugin invocation:');
-  console.log('window.Capacitor:', !!window.Capacitor, window.Capacitor);
-  console.log('window.Capacitor.Plugins:', window.Capacitor ? !!window.Capacitor.Plugins : false, window.Capacitor?.Plugins);
-  console.log('window.Capacitor.Plugins.LocalBackendPlugin:', window.Capacitor?.Plugins ? !!window.Capacitor.Plugins.LocalBackendPlugin : false);
-
-  const isNative = !!(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalBackendPlugin);
-  
-  if (isNative) {
-    console.log('[DEBUG] resolveStreamUrl: Native plugin detected. Requesting stream for:', videoUrl);
+  if (hasNativeBackend()) {
     try {
       const result = await window.Capacitor.Plugins.LocalBackendPlugin.getStreamUrl({
         url: videoUrl
       });
-      console.log('[DEBUG] resolveStreamUrl: Native plugin returned result:', result);
-      
+
       const trimmedUrl = typeof result.url === 'string' ? result.url.trim() : null;
       if (!trimmedUrl) {
         throw new Error('LocalBackendPlugin returned an empty or invalid stream URL string');
       }
       return trimmedUrl;
     } catch (e) {
-      console.error('[ERROR] LocalBackendPlugin getStreamUrl failed:', e);
-      throw e; // Pass on the actual error to prevent fallback to /api/stream
+      console.error('LocalBackendPlugin getStreamUrl failed:', e);
+      throw e;
     }
   }
 
-  console.warn('[WARN] LocalBackendPlugin not detected! Falling back to /api/stream');
   return buildMediaUrl('/api/stream');
 }
 
@@ -476,15 +468,12 @@ async function startPlayback() {
     return;
   }
 
-  console.log('[DEBUG] startPlayback: Selected video:', state.selectedVideo);
 
   setLoading(true);
   setPlayerStatus('Starting stream...');
 
   try {
-    console.log('[DEBUG] startPlayback: Requesting resolution for url:', state.selectedVideo.url);
     const nextSrc = await resolveStreamUrl(state.selectedVideo.url);
-    console.log('[DEBUG] startPlayback: Next audio src assigned:', nextSrc);
     
     if (!nextSrc) {
       throw new Error('Received empty stream URL');
@@ -593,7 +582,7 @@ async function playChosen(video) {
   startPlayback();
 }
 
-function downloadSelectedVideo() {
+async function downloadSelectedVideo() {
   if (!state.selectedVideo) {
     return;
   }
@@ -606,6 +595,28 @@ function downloadSelectedVideo() {
   }
 
   const fileTitle = state.selectedVideo.title || 'song';
+
+  if (hasNativeBackend()) {
+    setLoading(true);
+    setPlayerStatus('Preparing download...');
+
+    try {
+      const result = await window.Capacitor.Plugins.LocalBackendPlugin.download({
+        url: state.selectedVideo.url,
+        title: fileTitle,
+      });
+      const downloadLabel = result?.filename ? `: ${result.filename}` : '';
+      setPlayerStatus(`Download started${downloadLabel}`);
+    } catch (error) {
+      console.error('Native download failed:', error);
+      setPlayerStatus('Download failed. Try again.');
+    } finally {
+      setLoading(false);
+    }
+
+    return;
+  }
+
   const anchor = document.createElement('a');
   anchor.href = buildMediaUrl('/api/download', { title: fileTitle, duration: durationSeconds });
   anchor.download = `${fileTitle}.mp3`;
@@ -703,8 +714,6 @@ elements.audio.addEventListener('error', (e) => {
   setPlayerStatus('Stream error. Try another song.');
 });
 
-elements.audio.addEventListener('loadedmetadata', () => console.log('[AUDIO EVENT] loadedmetadata triggered.'));
-elements.audio.addEventListener('canplay', () => console.log('[AUDIO EVENT] canplay triggered. Audio is ready.'));
 
 elements.audio.addEventListener('ended', () => {
   setPlaying(false);
@@ -715,42 +724,3 @@ selectVideo(DEFAULT_SONG, { keepSearchOpen: true });
 preloadTrending();
 updateProgressUi(0);
 
-// ── Native startup: update yt-dlp with a visible toast ──────────────────────
-function showToast(msg, duration = 0) {
-  let toast = document.getElementById('yt-dlp-toast');
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.id = 'yt-dlp-toast';
-    Object.assign(toast.style, {
-      position: 'fixed', bottom: '24px', left: '50%',
-      transform: 'translateX(-50%)',
-      background: 'rgba(30,30,40,0.92)', color: '#e0e0ff',
-      padding: '10px 22px', borderRadius: '24px',
-      fontSize: '13px', fontWeight: '500', letterSpacing: '0.3px',
-      boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
-      backdropFilter: 'blur(8px)',
-      zIndex: '9999', transition: 'opacity 0.4s',
-      pointerEvents: 'none',
-    });
-    document.body.appendChild(toast);
-  }
-  toast.textContent = msg;
-  toast.style.opacity = '1';
-  if (duration > 0) {
-    setTimeout(() => { toast.style.opacity = '0'; }, duration);
-  }
-}
-
-(async () => {
-  const isNative = !!(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalBackendPlugin);
-  if (!isNative) return;
-  showToast('⏳ Initializing player...');
-  try {
-    const result = await window.Capacitor.Plugins.LocalBackendPlugin.initYoutubeDL();
-    console.log('[INIT] YoutubeDL init result:', result);
-    showToast('✅ Player ready!', 2500);
-  } catch (e) {
-    console.warn('[INIT] YoutubeDL init failed (will still try):', e);
-    showToast('⚠️ Update failed – playback may be limited', 3000);
-  }
-})();
