@@ -139,6 +139,27 @@ public class LocalBackendPlugin extends Plugin {
     }
 
     private AudioSelection resolvePreferredAudioStream(String videoUrl) throws Exception {
+        final int maxAttempts = 2;
+        Exception lastException = null;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return resolvePreferredAudioStreamOnce(videoUrl);
+            } catch (IllegalStateException e) {
+                lastException = e;
+                String msg = e.getMessage();
+                if (attempt < maxAttempts && msg != null && msg.contains("No audio streams found")) {
+                    Log.w(TAG, "Attempt " + attempt + " failed (transient), retrying in 500ms...", e);
+                    Thread.sleep(500);
+                } else {
+                    throw e;
+                }
+            }
+        }
+        throw lastException;
+    }
+
+    private AudioSelection resolvePreferredAudioStreamOnce(String videoUrl) throws Exception {
         Log.d(TAG, "Extracting stream for: " + videoUrl);
         StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, videoUrl);
         List<AudioStream> audioStreams = info.getAudioStreams();

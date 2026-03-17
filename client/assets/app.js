@@ -1,16 +1,9 @@
 lucide.createIcons();
 
-const TRENDING_QUERY = 'tamil trending songs';
+const TRENDING_QUERY = window.MONIFY_CONFIG.trendingQuery;
+const TRENDING_LIMIT = window.MONIFY_CONFIG.trendingLimit;
 const FALLBACK_THUMBNAIL = '/assets/logo.svg';
-const DEFAULT_SONG = window.MONIFY_CONFIG?.defaultSong || {
-  id: 'n_fA0hU5-a4',
-  title: 'Pathikichu',
-  channelTitle: 'Anirudh Ravichander',
-  url: 'https://www.youtube.com/watch?v=n_fA0hU5-a4',
-  thumbnail: 'https://img.youtube.com/vi/n_fA0hU5-a4/hqdefault.jpg',
-  durationSeconds: 120,
-  note: 'JP likes this song',
-};
+const DEFAULT_SONG = window.MONIFY_CONFIG.defaultSong;
 
 const elements = {
   playerView: document.getElementById('player-view'),
@@ -395,7 +388,7 @@ async function preloadTrending() {
     const results = await searchVideos(TRENDING_QUERY, {
       skipRender: true,
       cacheAsTrending: false, // We'll handle caching manually here
-      limit: 50,
+      limit: TRENDING_LIMIT,
     });
 
     state.trendingResults = results;
@@ -421,7 +414,7 @@ function showSearchView() {
 
   searchVideos(TRENDING_QUERY, {
     cacheAsTrending: true,
-    limit: 50,
+    limit: TRENDING_LIMIT,
     label: 'Trending Now',
   }).catch((error) => {
     console.error('Search preload failed:', error);
@@ -450,7 +443,7 @@ function normalizeYoutubeUrl(videoUrl) {
     const host = parsed.hostname.replace(/^www\./, '');
 
     if (host === 'youtu.be') {
-      const id = parsed.pathname.replace(/^\/+/,'').split('/')[0];
+      const id = parsed.pathname.replace(/^\/+/, '').split('/')[0];
       if (id) {
         return `https://www.youtube.com/watch?v=${id}`;
       }
@@ -519,7 +512,7 @@ async function startPlayback() {
 
   try {
     const nextSrc = await resolveStreamUrl(state.selectedVideo.url);
-    
+
     if (!nextSrc) {
       throw new Error('Received empty stream URL');
     }
@@ -646,10 +639,25 @@ async function downloadSelectedVideo() {
     setPlayerStatus('Preparing download...');
 
     try {
-      const result = await window.Capacitor.Plugins.LocalBackendPlugin.download({
-        url: normalizeYoutubeUrl(state.selectedVideo.url),
-        title: fileTitle,
-      });
+      let result;
+      try {
+        result = await window.Capacitor.Plugins.LocalBackendPlugin.download({
+          url: normalizeYoutubeUrl(state.selectedVideo.url),
+          title: fileTitle,
+        });
+      } catch (firstError) {
+        if (shouldRetryNativeResolve(firstError)) {
+          console.warn('Download attempt failed, retrying...', firstError);
+          setPlayerStatus('Retrying download...');
+          await wait(500);
+          result = await window.Capacitor.Plugins.LocalBackendPlugin.download({
+            url: normalizeYoutubeUrl(state.selectedVideo.url),
+            title: fileTitle,
+          });
+        } else {
+          throw firstError;
+        }
+      }
       const downloadLabel = result?.filename ? `: ${result.filename}` : '';
       setPlayerStatus(`Download started${downloadLabel}`);
     } catch (error) {
