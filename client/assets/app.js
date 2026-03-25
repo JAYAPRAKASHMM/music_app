@@ -763,7 +763,7 @@ document.getElementById('custom-quality-select')?.addEventListener('click', (e) 
   btn.classList.add('active');
   elements.qualityMenu.classList.add('hidden');
   if (state.isPlaying && !state.selectedVideo?.isLocalThumb) startPlayback();
-  showToast(`Quality set to ${btn.dataset.val}`);
+  showTopToast(`Quality set to ${btn.dataset.val}`);
 });
 
 // Config button
@@ -790,21 +790,21 @@ document.getElementById('settings-modal')?.addEventListener('click', (e) => {
 });
 
 document.getElementById('reset-min-duration')?.addEventListener('click', () => {
-  AppConfig.reset('minDuration'); showToast('Min duration reset to default');
+  AppConfig.reset('minDuration'); showTopToast('Min duration reset to default');
 });
 document.getElementById('reset-trending-query')?.addEventListener('click', () => {
-  AppConfig.reset('trendingQuery'); showToast('Trending query reset to default');
+  AppConfig.reset('trendingQuery'); showTopToast('Trending query reset to default');
 });
 document.getElementById('reset-trending-limit')?.addEventListener('click', () => {
-  AppConfig.reset('trendingLimit'); showToast('Trending limit reset to default');
+  AppConfig.reset('trendingLimit'); showTopToast('Trending limit reset to default');
 });
 document.getElementById('reset-default-song')?.addEventListener('click', () => {
-  AppConfig.reset('defaultSong'); showToast('Default song reset to default');
+  AppConfig.reset('defaultSong'); showTopToast('Default song reset to default');
   document.getElementById('config-default-url').value = AppConfig.defaultSong?.url || '';
 });
 
 document.getElementById('reset-api-key')?.addEventListener('click', () => {
-  AppConfig.reset('youtubeApiKey'); showToast('API key reset to default');
+  AppConfig.reset('youtubeApiKey'); showTopToast('API key reset to default');
   document.getElementById('config-api-key').value = '';
 });
 
@@ -827,7 +827,7 @@ document.getElementById('save-settings-btn')?.addEventListener('click', async ()
 
   if (rawUrl && rawUrl.includes('youtube.com')) {
     try {
-      showToast('Resolving song metadata…');
+      showTopToast('Resolving song metadata…');
       const res = await fetch(`${getApiBaseUrl()}/api/resolve?url=${encodeURIComponent(rawUrl)}`);
       const data = await res.json();
       if (res.ok && data.title) {
@@ -841,7 +841,7 @@ document.getElementById('save-settings-btn')?.addEventListener('click', async ()
   }
 
   document.getElementById('settings-modal')?.classList.add('hidden');
-  showToast('Settings saved! Restart app to apply all changes.');
+  showTopToast('Settings saved! Restart app to apply all changes.');
 });
 
 // Clear Caches
@@ -853,7 +853,7 @@ document.getElementById('clear-cache-btn')?.addEventListener('click', () => {
   state.recentlyPlayed = [];
   state.cache.clear();
   elements.qualityMenu.classList.add('hidden');
-  showToast('All caches cleared! ✓');
+  showTopToast('All caches cleared! ✓');
 });
 
 function showToast(msg, duration = 2800) { showBottomToast(msg, duration); }
@@ -1144,4 +1144,6 @@ downloadsNextPage?.addEventListener('click', () => {
 selectVideo(AppConfig.defaultSong, { keepSearchOpen: true });
 preloadTrending();
 updateProgressUi(0);
+
+
 
