@@ -24,10 +24,16 @@
           <h1>Monify</h1>
         </div>
       </div>
-      <button class="search-trigger" id="search-trigger" type="button">
-        <i data-lucide="search"></i>
-        <span>Search</span>
-      </button>
+      <div class="top-actions" style="display: flex; gap: 8px;">
+        <button class="downloads-trigger" id="downloads-trigger" title="Local Downloads" type="button">
+          <i data-lucide="folder-down"></i>
+          <span class="hide-mobile">Downloads</span>
+        </button>
+        <button class="search-trigger" id="search-trigger" type="button">
+          <i data-lucide="search"></i>
+          <span>Search</span>
+        </button>
+      </div>
     </header>
 
     <section class="player-card">
@@ -123,6 +129,38 @@
       </div>
 
       <div class="results-container" id="results"></div>
+    </section>
+  </main>
+
+  <main class="view-container hidden" id="downloads-view">
+    <section class="search-card">
+      <header class="search-header">
+        <div class="search-form">
+          <div class="search-input-wrap">
+            <button type="button" class="btn-icon" id="downloads-back-btn" aria-label="Back to player">
+              <i data-lucide="arrow-left"></i>
+            </button>
+            <input id="downloads-search-input" type="text" placeholder="Search downloaded songs" autocomplete="off">
+          </div>
+        </div>
+      </header>
+
+      <div class="results-meta">
+        <span class="eyebrow" id="downloads-results-label">Local Downloads</span>
+        <span class="count" id="downloads-count"></span>
+      </div>
+
+      <div class="results-container" id="downloads-results"></div>
+      
+      <div class="pagination-controls hidden" id="downloads-pagination">
+        <button class="downloads-trigger" id="downloads-prev-page" disabled>
+          <i data-lucide="chevron-left"></i> Back
+        </button>
+        <span id="downloads-page-info" class="page-info">Page 1</span>
+        <button class="downloads-trigger" id="downloads-next-page" disabled>
+          Next <i data-lucide="chevron-right"></i>
+        </button>
+      </div>
     </section>
   </main>
 

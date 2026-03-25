@@ -138,6 +138,42 @@ public class LocalBackendPlugin extends Plugin {
         });
     }
 
+    @PluginMethod
+    public void getSavedSongs(PluginCall call) {
+        getBridge().execute(() -> {
+            try {
+                java.io.File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                com.getcapacitor.JSArray results = new com.getcapacitor.JSArray();
+
+                if (dir != null && dir.exists() && dir.isDirectory()) {
+                    java.io.File[] files = dir.listFiles((dir1, name) -> {
+                        String lower = name.toLowerCase(java.util.Locale.US);
+                        return lower.endsWith(".mp3") || lower.endsWith(".m4a") || lower.endsWith(".aac") || lower.endsWith(".webm") || lower.endsWith(".opus");
+                    });
+
+                    if (files != null) {
+                        java.util.Arrays.sort(files, (f1, f2) -> Long.compare(f2.lastModified(), f1.lastModified()));
+
+                        for (java.io.File f : files) {
+                            com.getcapacitor.JSObject song = new com.getcapacitor.JSObject();
+                            song.put("title", f.getName());
+                            song.put("path", f.getAbsolutePath());
+                            song.put("lastModified", f.lastModified());
+                            results.put(song);
+                        }
+                    }
+                }
+
+                JSObject ret = new JSObject();
+                ret.put("songs", results);
+                call.resolve(ret);
+            } catch (Exception e) {
+                Log.e(TAG, "getSavedSongs failed", e);
+                call.reject("Failed to read downloads: " + e.getMessage());
+            }
+        });
+    }
+
     private AudioSelection resolvePreferredAudioStream(String videoUrl) throws Exception {
         final int maxAttempts = 2;
         Exception lastException = null;

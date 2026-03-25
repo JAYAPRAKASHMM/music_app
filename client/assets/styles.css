@@ -115,6 +115,7 @@ img {
 }
 
 .search-trigger,
+.downloads-trigger,
 .search-input-wrap,
 .btn-up-next,
 .result-item,
@@ -122,7 +123,8 @@ img {
   border: 1px solid var(--line);
 }
 
-.search-trigger {
+.search-trigger,
+.downloads-trigger {
   display: inline-flex;
   min-height: 52px;
   align-items: center;
@@ -317,6 +319,7 @@ img {
 .btn-control svg,
 .btn-icon svg,
 .search-trigger svg,
+.downloads-trigger svg,
 .result-play-btn svg {
   width: 22px;
   height: 22px;
@@ -512,6 +515,10 @@ img {
 }
 
 @media (max-width: 640px) {
+  .hide-mobile {
+    display: none;
+  }
+
   .view-container {
     width: min(100%, calc(100% - 12px));
     padding: 10px 0 18px;
@@ -613,8 +620,29 @@ select:focus-visible {
 .btn-inline:hover,
 .btn-up-next:hover,
 .search-trigger:hover,
+.downloads-trigger:hover,
 .search-submit:hover,
 .result-item:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(158, 206, 178, 0.28);
+}
+
+.pagination-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding: 0 4px;
+}
+
+.pagination-controls .downloads-trigger {
+  min-width: unset;
+  padding: 8px 16px;
+  min-height: 42px;
+}
+
+.pagination-controls .downloads-trigger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: transparent;
 }

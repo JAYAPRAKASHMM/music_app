@@ -424,6 +424,10 @@ function showSearchView() {
 
 function hideSearchView() {
   elements.searchView.classList.add('hidden');
+  const dView = document.getElementById('downloads-view');
+  if (dView && !dView.classList.contains('hidden')) {
+     return; // Don't show player if downloads is active
+  }
   elements.playerView.classList.remove('hidden');
 }
 
@@ -773,7 +777,174 @@ elements.audio.addEventListener('ended', () => {
   playChosen(chooseRandomTrending());
 });
 
+const downloadsView = document.getElementById('downloads-view');
+const downloadsTrigger = document.getElementById('downloads-trigger');
+const downloadsBackBtn = document.getElementById('downloads-back-btn');
+const downloadsResults = document.getElementById('downloads-results');
+const downloadsCount = document.getElementById('downloads-count');
+const downloadsSearchInput = document.getElementById('downloads-search-input');
+const downloadsPrevPage = document.getElementById('downloads-prev-page');
+const downloadsNextPage = document.getElementById('downloads-next-page');
+const downloadsPageInfo = document.getElementById('downloads-page-info');
+const downloadsPagination = document.getElementById('downloads-pagination');
+
+class TrieNode {
+  constructor() {
+    this.children = {};
+    this.songs = [];
+  }
+}
+
+const localDownloadsState = {
+  allSongs: [],
+  trieRoot: new TrieNode(),
+  currentPage: 1,
+  currentQuery: ''
+};
+
+function insertTrie(title, song) {
+  const words = title.toLowerCase().split(/[\\s_\\-\\.]+/);
+  for (const word of words) {
+    if (!word) continue;
+    let curr = localDownloadsState.trieRoot;
+    for (let i = 0; i < word.length; i++) {
+      const char = word[i];
+      if (!curr.children[char]) curr.children[char] = new TrieNode();
+      curr = curr.children[char];
+      if (!curr.songs.includes(song)) curr.songs.push(song);
+    }
+  }
+}
+
+function searchTrie(query) {
+  if (!query) return localDownloadsState.allSongs;
+  const words = query.toLowerCase().split(/[\\s_\\-\\.]+/).filter(Boolean);
+  if (!words.length) return localDownloadsState.allSongs;
+
+  let resultSets = [];
+  for (const word of words) {
+    let node = localDownloadsState.trieRoot;
+    let found = true;
+    for (let i = 0; i < word.length; i++) {
+      const char = word[i];
+      if (node.children[char]) node = node.children[char];
+      else { found = false; break; }
+    }
+    if (found) resultSets.push(new Set(node.songs));
+    else return []; 
+  }
+  
+  if (!resultSets.length) return [];
+  let intersection = new Set(resultSets[0]);
+  for (let i = 1; i < resultSets.length; i++) {
+      intersection = new Set([...intersection].filter(x => resultSets[i].has(x)));
+  }
+  return Array.from(intersection);
+}
+
+async function renderDownloadsPage(page = 1, query = '') {
+  localDownloadsState.currentPage = page;
+  localDownloadsState.currentQuery = query;
+  
+  if (!localDownloadsState.allSongs.length && !query) {
+    downloadsResults.innerHTML = '<p class="empty-state">Scanning downloads...</p>';
+    if (window.Capacitor?.Plugins?.LocalBackendPlugin?.getSavedSongs) {
+      try {
+        const res = await window.Capacitor.Plugins.LocalBackendPlugin.getSavedSongs();
+        localDownloadsState.allSongs = res.songs || [];
+      } catch(e) { console.error('Failed to get saved songs', e); }
+    } else {
+      localDownloadsState.allSongs = Array.from({length: 120}, (_, i) => ({
+        title: `Mock Local Song \${i+1}`,
+        path: `mock/song_\${i+1}.mp3`,
+        lastModified: Date.now() - i*1000
+      }));
+    }
+    localDownloadsState.trieRoot = new TrieNode();
+    for (const song of localDownloadsState.allSongs) {
+      insertTrie(song.title, song);
+    }
+  }
+  
+  const filtered = searchTrie(query);
+  const totalPages = Math.ceil(filtered.length / 100) || 1;
+  const start = (page - 1) * 100;
+  const pageSongs = filtered.slice(start, start + 100);
+  
+  downloadsCount.textContent = `\${filtered.length} songs`;
+  downloadsPageInfo.textContent = `Page \${page} of \${totalPages}`;
+  downloadsPrevPage.disabled = page <= 1;
+  downloadsNextPage.disabled = page >= totalPages;
+  downloadsPagination.classList.toggle('hidden', totalPages <= 1);
+  
+  downloadsResults.innerHTML = '';
+  if (!pageSongs.length) {
+    downloadsResults.innerHTML = '<p class="empty-state">No downloads found.</p>';
+    return;
+  }
+  
+  pageSongs.forEach(song => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'result-item';
+    btn.innerHTML = `
+      <img src="\${FALLBACK_THUMBNAIL}" class="result-thumb" alt="Local">
+      <div class="result-info">
+        <h3>\${song.title}</h3>
+        <p>Local File</p>
+      </div>
+      <span class="result-play-btn"><i data-lucide="play"></i></span>
+    `;
+    btn.addEventListener('click', async () => {
+       let src = song.path;
+       if (window.Capacitor?.convertFileSrc) {
+         src = window.Capacitor.convertFileSrc(src.startsWith('/') ? 'file://' + src : src);
+       }
+       const mockVideo = {
+         id: song.path, title: song.title.replace(/\\.[^/.]+$/, ''),
+         channelTitle: 'Local Audio', thumbnail: FALLBACK_THUMBNAIL, url: src, durationSeconds: 0
+       };
+       await selectVideo(mockVideo, { keepSearchOpen: false });
+       hideDownloadsView();
+       if (src.startsWith('mock/')) { setPlayerStatus('Mock file - wont play in browser'); return; }
+       elements.audio.src = src;
+       elements.audio.play().then(() => {
+         setPlaying(true); setPlayerStatus(`Playing \${mockVideo.title}`);
+       }).catch(e => { console.error(e); setPlayerStatus('Failed to play local file'); });
+    });
+    downloadsResults.appendChild(btn);
+  });
+  refreshIcons();
+}
+
+function showDownloadsView() {
+  elements.playerView.classList.add('hidden');
+  elements.searchView.classList.add('hidden');
+  downloadsView.classList.remove('hidden');
+  renderDownloadsPage(1, '');
+}
+
+function hideDownloadsView() {
+  downloadsView.classList.add('hidden');
+  elements.playerView.classList.remove('hidden');
+}
+
+downloadsTrigger?.addEventListener('click', showDownloadsView);
+downloadsBackBtn?.addEventListener('click', hideDownloadsView);
+
+let searchTimer;
+downloadsSearchInput?.addEventListener('input', (e) => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => renderDownloadsPage(1, e.target.value), 250);
+});
+
+downloadsPrevPage?.addEventListener('click', () => {
+  if (localDownloadsState.currentPage > 1) renderDownloadsPage(localDownloadsState.currentPage - 1, localDownloadsState.currentQuery);
+});
+downloadsNextPage?.addEventListener('click', () => {
+  renderDownloadsPage(localDownloadsState.currentPage + 1, localDownloadsState.currentQuery);
+});
+
 selectVideo(DEFAULT_SONG, { keepSearchOpen: true });
 preloadTrending();
 updateProgressUi(0);
-
