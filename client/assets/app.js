@@ -140,6 +140,7 @@ function applySongToUi(video) {
   elements.discThumbnail.src = video.thumbnail || FALLBACK_THUMBNAIL;
   elements.discThumbnail.alt = `${video.title || 'Song'} thumbnail`;
   elements.discThumbnail.classList.toggle('local-thumb', !!video.isLocalThumb);
+  elements.qualityMenuBtn.style.display = video.isLocalThumb ? 'none' : '';
   elements.totalTime.textContent = formatTime(video.durationSeconds || 0);
   updateProgressUi(0);
 }
@@ -516,7 +517,13 @@ async function startPlayback() {
   setPlayerStatus('Starting stream...');
 
   try {
-    const nextSrc = await resolveStreamUrl(state.selectedVideo.url);
+    let nextSrc;
+    if (state.selectedVideo.isLocalThumb) {
+      if (state.selectedVideo.url.startsWith('mock/')) throw new Error('Mock file - wont play in browser');
+      nextSrc = state.selectedVideo.url;
+    } else {
+      nextSrc = await resolveStreamUrl(state.selectedVideo.url);
+    }
 
     if (!nextSrc) {
       throw new Error('Received empty stream URL');
@@ -584,6 +591,22 @@ function togglePlayback() {
 }
 
 function getPlaybackPool() {
+  if (state.selectedVideo?.isLocalThumb) {
+    if (localDownloadsState.allSongs.length > 0) {
+      return localDownloadsState.allSongs.map(song => {
+         let src = song.path;
+         if (window.Capacitor?.convertFileSrc) {
+           src = window.Capacitor.convertFileSrc(src.startsWith('/') ? 'file://' + src : src);
+         }
+         return {
+           id: song.path, title: song.title.replace(/\.[^/.]+$/, ''),
+           channelTitle: 'Local Audio', thumbnail: song.thumbnail || FALLBACK_THUMBNAIL, url: src, durationSeconds: 0,
+           isLocalThumb: true
+         };
+      });
+    }
+    return [state.selectedVideo];
+  }
   return state.trendingResults.length ? state.trendingResults : [DEFAULT_SONG];
 }
 
@@ -709,7 +732,13 @@ elements.recentBtn?.addEventListener('click', () => {
   state.activeQueryLabel = 'Recently Played';
   renderResults(state.recentlyPlayed);
 });
-elements.prevBtn.addEventListener('click', () => { playChosen(chooseAdjacent(-1)); });
+elements.prevBtn.addEventListener('click', () => { 
+  if (state.recentlyPlayed.length > 1) {
+    playChosen(state.recentlyPlayed[1]);
+  } else {
+    playChosen(chooseAdjacent(-1));
+  }
+});
 elements.nextBtn.addEventListener('click', () => { playChosen(chooseAdjacent(1)); });
 elements.upNextBtn.addEventListener('click', () => { playChosen(chooseRandomTrending()); });
 

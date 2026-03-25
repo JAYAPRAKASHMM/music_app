@@ -32,7 +32,23 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-@CapacitorPlugin(name = "LocalBackendPlugin")
+import android.Manifest;
+import com.getcapacitor.annotation.PermissionCallback;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.PermissionState;
+
+@CapacitorPlugin(
+    name = "LocalBackendPlugin",
+    permissions = {
+        @Permission(
+            alias = "storage",
+            strings = {
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.READ_MEDIA_AUDIO
+            }
+        )
+    }
+)
 public class LocalBackendPlugin extends Plugin {
     private static final String TAG = "LocalBackendPlugin";
     private static final String USER_AGENT =
@@ -140,6 +156,23 @@ public class LocalBackendPlugin extends Plugin {
 
     @PluginMethod
     public void getSavedSongs(PluginCall call) {
+        if (getPermissionState("storage") != PermissionState.GRANTED) {
+            requestPermissionForAlias("storage", call, "getSavedSongsCallback");
+            return;
+        }
+        executeGetSavedSongs(call);
+    }
+
+    @PermissionCallback
+    private void getSavedSongsCallback(PluginCall call) {
+        if (getPermissionState("storage") == PermissionState.GRANTED) {
+            executeGetSavedSongs(call);
+        } else {
+            call.reject("Storage permission denied");
+        }
+    }
+
+    private void executeGetSavedSongs(PluginCall call) {
         getBridge().execute(() -> {
             try {
                 java.io.File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
