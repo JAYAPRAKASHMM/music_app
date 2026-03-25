@@ -139,6 +139,7 @@ function applySongToUi(video) {
   elements.urlInput.value = video.url;
   elements.discThumbnail.src = video.thumbnail || FALLBACK_THUMBNAIL;
   elements.discThumbnail.alt = `${video.title || 'Song'} thumbnail`;
+  elements.discThumbnail.classList.toggle('local-thumb', !!video.isLocalThumb);
   elements.totalTime.textContent = formatTime(video.durationSeconds || 0);
   updateProgressUi(0);
 }
@@ -803,7 +804,7 @@ const localDownloadsState = {
 };
 
 function insertTrie(title, song) {
-  const words = title.toLowerCase().split(/[\\s_\\-\\.]+/);
+  const words = title.toLowerCase().split(/[^a-z0-9]+/);
   for (const word of words) {
     if (!word) continue;
     let curr = localDownloadsState.trieRoot;
@@ -818,7 +819,7 @@ function insertTrie(title, song) {
 
 function searchTrie(query) {
   if (!query) return localDownloadsState.allSongs;
-  const words = query.toLowerCase().split(/[\\s_\\-\\.]+/).filter(Boolean);
+  const words = query.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   if (!words.length) return localDownloadsState.allSongs;
 
   let resultSets = [];
@@ -913,8 +914,9 @@ async function renderDownloadsPage(page = 1, query = '') {
          src = window.Capacitor.convertFileSrc(src.startsWith('/') ? 'file://' + src : src);
        }
        const mockVideo = {
-         id: song.path, title: song.title.replace(/\\.[^/.]+$/, ''),
-         channelTitle: 'Local Audio', thumbnail: thumb, url: src, durationSeconds: 0
+         id: song.path, title: song.title.replace(/\.[^/.]+$/, ''),
+         channelTitle: 'Local Audio', thumbnail: thumb, url: src, durationSeconds: 0,
+         isLocalThumb: thumb.includes('default download thumbnail') || thumb.includes('mock')
        };
        await selectVideo(mockVideo, { keepSearchOpen: false });
        hideDownloadsView();

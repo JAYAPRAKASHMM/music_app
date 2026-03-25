@@ -203,6 +203,11 @@ img {
   transform-origin: center;
 }
 
+.disc-art img.local-thumb {
+  transform: scale(1.0);
+  object-fit: cover;
+}
+
 
 .player-info {
   display: flex;
