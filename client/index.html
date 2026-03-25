@@ -39,15 +39,25 @@
           <i data-lucide="more-horizontal"></i>
         </button>
         <div id="quality-menu" class="quality-menu hidden">
-          <p class="menu-title">Audio Quality</p>
-          <select id="quality-select">
-            <option value="320k">320k Ultra</option>
-            <option value="256k">256k High</option>
-            <option value="192k">192k Balanced</option>
-            <option value="128k" selected>128k Standard</option>
-            <option value="96k">96k Data Saver</option>
-            <option value="64k">64k Low Bandwidth</option>
-          </select>
+          <div id="main-quality-options">
+            <button class="menu-item-btn" id="open-resolutions-btn" type="button" style="background:transparent; border:none; color:var(--text-main); font-size:1rem; cursor:pointer; display:flex; align-items:center; gap:8px; width:100%; text-align:left;">
+              <i data-lucide="settings" style="width: 18px; height: 18px;"></i> Quality
+            </button>
+          </div>
+          <div id="resolutions-submenu" class="hidden">
+            <button class="menu-item-btn" id="back-to-main-btn" type="button" style="background:transparent; border:none; color:var(--text-muted); font-size:0.9rem; cursor:pointer; margin-bottom:12px; display:flex; align-items:center; gap:4px; margin-top:-4px;">
+              <i data-lucide="arrow-left" style="width: 16px; height: 16px;"></i> Back
+            </button>
+            <p class="menu-title">Select Quality</p>
+            <select id="quality-select">
+              <option value="320k">320k Ultra</option>
+              <option value="256k">256k High</option>
+              <option value="192k">192k Balanced</option>
+              <option value="128k" selected>128k Standard</option>
+              <option value="96k">96k Data Saver</option>
+              <option value="64k">64k Low Bandwidth</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -99,9 +109,7 @@
 
         <p class="status" id="player-status"></p>
 
-        <div class="action-row">
-          <button class="btn-up-next" id="up-next-btn" type="button">Play Something New</button>
-        </div>
+
       </div>
     </section>
   </main>

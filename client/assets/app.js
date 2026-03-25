@@ -12,6 +12,10 @@ const elements = {
   qualityMenuBtn: document.getElementById('quality-menu-btn'),
   qualityMenu: document.getElementById('quality-menu'),
   qualitySelect: document.getElementById('quality-select'),
+  openResBtn: document.getElementById('open-resolutions-btn'),
+  backToMainBtn: document.getElementById('back-to-main-btn'),
+  mainOpts: document.getElementById('main-quality-options'),
+  resSub: document.getElementById('resolutions-submenu'),
   vinylDisc: document.getElementById('vinyl-disc'),
   discThumbnail: document.getElementById('disc-thumbnail'),
   selectedTitle: document.getElementById('selected-title'),
@@ -709,6 +713,20 @@ elements.searchTrigger.addEventListener('click', showSearchView);
 elements.backBtn.addEventListener('click', hideSearchView);
 elements.qualityMenuBtn.addEventListener('click', () => {
   elements.qualityMenu.classList.toggle('hidden');
+  if (!elements.qualityMenu.classList.contains('hidden') && elements.mainOpts && elements.resSub) {
+    elements.mainOpts.classList.remove('hidden');
+    elements.resSub.classList.add('hidden');
+  }
+});
+
+elements.openResBtn?.addEventListener('click', () => {
+  elements.mainOpts.classList.add('hidden');
+  elements.resSub.classList.remove('hidden');
+});
+
+elements.backToMainBtn?.addEventListener('click', () => {
+  elements.resSub.classList.add('hidden');
+  elements.mainOpts.classList.remove('hidden');
 });
 
 document.addEventListener('click', (event) => {
@@ -740,7 +758,6 @@ elements.prevBtn.addEventListener('click', () => {
   }
 });
 elements.nextBtn.addEventListener('click', () => { playChosen(chooseAdjacent(1)); });
-elements.upNextBtn.addEventListener('click', () => { playChosen(chooseRandomTrending()); });
 
 elements.searchForm.addEventListener('submit', async (event) => {
   event.preventDefault();
