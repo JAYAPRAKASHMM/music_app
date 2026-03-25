@@ -58,7 +58,6 @@ const elements = {
   totalTime: document.getElementById('total-time'),
   prevBtn: document.getElementById('prev-btn'),
   nextBtn: document.getElementById('next-btn'),
-  upNextBtn: document.getElementById('up-next-btn'),
   recentBtn: document.getElementById('recent-btn'),
 };
 
@@ -756,12 +755,102 @@ document.addEventListener('click', (event) => {
   }
 });
 
-elements.qualitySelect.addEventListener('change', () => {
+// Custom quality button delegation
+document.getElementById('custom-quality-select')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.qc-btn');
+  if (!btn) return;
+  document.querySelectorAll('.qc-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
   elements.qualityMenu.classList.add('hidden');
-  if (state.isPlaying) {
-    startPlayback();
-  }
+  if (state.isPlaying && !state.selectedVideo?.isLocalThumb) startPlayback();
+  showToast(`Quality set to ${btn.dataset.val}`);
 });
+
+// Config button
+document.getElementById('open-config-btn')?.addEventListener('click', () => {
+  elements.qualityMenu.classList.add('hidden');
+  const modal = document.getElementById('settings-modal');
+  if (!modal) return;
+  document.getElementById('config-min-duration').value = AppConfig.minDuration;
+  document.getElementById('config-trending-query').value = AppConfig.trendingQuery;
+  document.getElementById('config-trending-limit').value = AppConfig.trendingLimit;
+  document.getElementById('config-default-url').value = AppConfig.defaultSong?.url || '';
+  modal.classList.remove('hidden');
+  lucide.createIcons();
+});
+
+document.getElementById('close-settings-btn')?.addEventListener('click', () => {
+  document.getElementById('settings-modal')?.classList.add('hidden');
+});
+
+document.getElementById('settings-modal')?.addEventListener('click', (e) => {
+  if (e.target === document.getElementById('settings-modal'))
+    document.getElementById('settings-modal').classList.add('hidden');
+});
+
+document.getElementById('reset-min-duration')?.addEventListener('click', () => {
+  AppConfig.reset('minDuration'); showToast('Min duration reset to default');
+});
+document.getElementById('reset-trending-query')?.addEventListener('click', () => {
+  AppConfig.reset('trendingQuery'); showToast('Trending query reset to default');
+});
+document.getElementById('reset-trending-limit')?.addEventListener('click', () => {
+  AppConfig.reset('trendingLimit'); showToast('Trending limit reset to default');
+});
+document.getElementById('reset-default-song')?.addEventListener('click', () => {
+  AppConfig.reset('defaultSong'); showToast('Default song reset to default');
+});
+
+document.getElementById('save-settings-btn')?.addEventListener('click', async () => {
+  const minD = parseInt(document.getElementById('config-min-duration').value, 10);
+  const tQ = document.getElementById('config-trending-query').value.trim();
+  const tL = parseInt(document.getElementById('config-trending-limit').value, 10);
+  const rawUrl = document.getElementById('config-default-url').value.trim();
+
+  if (minD > 0) AppConfig.minDuration = minD;
+  if (tQ) AppConfig.trendingQuery = tQ;
+  if (tL > 0) AppConfig.trendingLimit = tL;
+
+  if (rawUrl && rawUrl.includes('youtube.com')) {
+    try {
+      showToast('Resolving song metadata…');
+      const res = await fetch(`${getApiBaseUrl()}/api/resolve?url=${encodeURIComponent(rawUrl)}`);
+      const data = await res.json();
+      if (res.ok && data.title) {
+        AppConfig.defaultSong = {
+          id: data.id || '', title: data.title, channelTitle: data.channelTitle || '',
+          url: rawUrl, thumbnail: data.thumbnail || `https://img.youtube.com/vi/${data.id}/hqdefault.jpg`,
+          durationSeconds: data.durationSeconds || 0, note: 'user addicted to this shit🎵'
+        };
+      }
+    } catch(e) { console.error('resolve failed', e); }
+  }
+
+  document.getElementById('settings-modal')?.classList.add('hidden');
+  showToast('Settings saved! Restart app to apply all changes.');
+});
+
+// Clear Caches
+document.getElementById('clear-cache-btn')?.addEventListener('click', () => {
+  localStorage.removeItem('monify_trending');
+  localStorage.removeItem('monify_trending_time');
+  localStorage.removeItem('monify_recent');
+  state.trendingResults = [];
+  state.recentlyPlayed = [];
+  state.cache.clear();
+  elements.qualityMenu.classList.add('hidden');
+  showToast('All caches cleared! ✓');
+});
+
+function showToast(msg) {
+  const tc = document.getElementById('toast-container');
+  if (!tc) return;
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'background:rgba(20,30,20,0.95);color:#fff;padding:12px 20px;border-radius:10px;font-size:0.9rem;border:1px solid rgba(38,192,90,0.4);box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);transition:opacity 0.4s;white-space:nowrap;';
+  tc.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 2800);
+}
 
 elements.playBtn.addEventListener('click', togglePlayback);
 elements.downloadBtn.addEventListener('click', downloadSelectedVideo);
