@@ -156,7 +156,14 @@ public class LocalBackendPlugin extends Plugin {
 
     @PluginMethod
     public void getSavedSongs(PluginCall call) {
-        if (getPermissionState("storage") != PermissionState.GRANTED) {
+        boolean hasPerm = false;
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            hasPerm = androidx.core.content.ContextCompat.checkSelfPermission(getContext(), Manifest.permission.READ_MEDIA_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        } else {
+            hasPerm = androidx.core.content.ContextCompat.checkSelfPermission(getContext(), Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        }
+
+        if (!hasPerm) {
             requestPermissionForAlias("storage", call, "getSavedSongsCallback");
             return;
         }
@@ -165,7 +172,14 @@ public class LocalBackendPlugin extends Plugin {
 
     @PermissionCallback
     private void getSavedSongsCallback(PluginCall call) {
-        if (getPermissionState("storage") == PermissionState.GRANTED) {
+        boolean hasPerm = false;
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            hasPerm = androidx.core.content.ContextCompat.checkSelfPermission(getContext(), Manifest.permission.READ_MEDIA_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        } else {
+            hasPerm = androidx.core.content.ContextCompat.checkSelfPermission(getContext(), Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        }
+
+        if (hasPerm) {
             executeGetSavedSongs(call);
         } else {
             call.reject("Storage permission denied");
