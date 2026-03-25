@@ -1,9 +1,30 @@
 lucide.createIcons();
 
-const TRENDING_QUERY = window.MONIFY_CONFIG.trendingQuery;
-const TRENDING_LIMIT = window.MONIFY_CONFIG.trendingLimit;
+const AppConfig = (() => {
+  const getSaved = () => {
+    try { return JSON.parse(localStorage.getItem('monify_user_config')) || {}; }
+    catch { return {}; }
+  };
+  const save = (obj) => localStorage.setItem('monify_user_config', JSON.stringify(obj));
+  
+  return {
+    get defaultSong() { return getSaved().defaultSong || window.MONIFY_CONFIG.defaultSong; },
+    set defaultSong(val) { const s = getSaved(); s.defaultSong = val; save(s); },
+    get trendingQuery() { return getSaved().trendingQuery || window.MONIFY_CONFIG.trendingQuery || 'tamil trending songs'; },
+    set trendingQuery(val) { const s = getSaved(); s.trendingQuery = val; save(s); },
+    get trendingLimit() { return parseInt(getSaved().trendingLimit || window.MONIFY_CONFIG.trendingLimit || 50, 10); },
+    set trendingLimit(val) { const s = getSaved(); s.trendingLimit = val; save(s); },
+    get minDuration() { return parseInt(getSaved().minDuration || window.MONIFY_CONFIG.minDurationSeconds || 120, 10); },
+    set minDuration(val) { const s = getSaved(); s.minDuration = val; save(s); },
+    reset(key) { 
+       const s = getSaved(); 
+       if (key) { delete s[key]; } else { Object.keys(s).forEach(k => delete s[k]); }
+       save(s); 
+    }
+  };
+})();
+
 const FALLBACK_THUMBNAIL = '/assets/logo.svg';
-const DEFAULT_SONG = window.MONIFY_CONFIG.defaultSong;
 
 const elements = {
   playerView: document.getElementById('player-view'),
@@ -11,7 +32,6 @@ const elements = {
   searchTrigger: document.getElementById('search-trigger'),
   qualityMenuBtn: document.getElementById('quality-menu-btn'),
   qualityMenu: document.getElementById('quality-menu'),
-  qualitySelect: document.getElementById('quality-select'),
   openResBtn: document.getElementById('open-resolutions-btn'),
   backToMainBtn: document.getElementById('back-to-main-btn'),
   mainOpts: document.getElementById('main-quality-options'),
@@ -144,7 +164,8 @@ function applySongToUi(video) {
   elements.discThumbnail.src = video.thumbnail || FALLBACK_THUMBNAIL;
   elements.discThumbnail.alt = `${video.title || 'Song'} thumbnail`;
   elements.discThumbnail.classList.toggle('local-thumb', !!video.isLocalThumb);
-  elements.qualityMenuBtn.style.display = video.isLocalThumb ? 'none' : '';
+  elements.qualityMenuBtn.style.display = '';
+  if (elements.openResBtn) elements.openResBtn.style.display = video.isLocalThumb ? 'none' : '';
   elements.totalTime.textContent = formatTime(video.durationSeconds || 0);
   updateProgressUi(0);
 }
@@ -319,9 +340,8 @@ async function performNativeYoutubeSearch(query) {
       durationSeconds: durationSeconds,
     };
   })
-    .filter(item => item.durationSeconds >= 60 && item.durationSeconds < 360)
-    .filter(item => !item.title.toLowerCase().includes('#shorts'))
-    .slice(0, 20);
+    .filter(item => item.durationSeconds >= AppConfig.minDuration)
+    .filter(item => !item.title.toLowerCase().includes('#shorts'));
 }
 
 async function searchVideos(query, options = {}) {
@@ -350,7 +370,7 @@ async function searchVideos(query, options = {}) {
   if (window.Capacitor?.isNativePlatform?.()) {
     rawResults = await performNativeYoutubeSearch(query);
   } else {
-    const response = await fetch(`${getApiBaseUrl()}/api/search?q=${encodeURIComponent(query)}`);
+    const response = await fetch(`${getApiBaseUrl()}/api/search?q=${encodeURIComponent(query)}&minDuration=${AppConfig.minDuration}`);
     const data = await response.json();
 
     if (!response.ok) {
@@ -391,10 +411,10 @@ async function preloadTrending() {
       return;
     }
 
-    const results = await searchVideos(TRENDING_QUERY, {
+    const results = await searchVideos(AppConfig.trendingQuery, {
       skipRender: true,
       cacheAsTrending: false, // We'll handle caching manually here
-      limit: TRENDING_LIMIT,
+      limit: AppConfig.trendingLimit,
     });
 
     state.trendingResults = results;
@@ -410,7 +430,7 @@ function showSearchView() {
   elements.searchView.classList.remove('hidden');
   elements.searchInput.focus();
 
-  const cachedTrending = state.cache.get(TRENDING_QUERY) || state.trendingResults;
+  const cachedTrending = state.cache.get(AppConfig.trendingQuery) || state.trendingResults;
   if (cachedTrending.length) {
     state.searchResults = cachedTrending;
     state.activeQueryLabel = 'Trending Now';
@@ -418,9 +438,9 @@ function showSearchView() {
     return;
   }
 
-  searchVideos(TRENDING_QUERY, {
+  searchVideos(AppConfig.trendingQuery, {
     cacheAsTrending: true,
-    limit: TRENDING_LIMIT,
+    limit: AppConfig.trendingLimit,
     label: 'Trending Now',
   }).catch((error) => {
     console.error('Search preload failed:', error);
@@ -438,9 +458,10 @@ function hideSearchView() {
 }
 
 function buildMediaUrl(endpoint, extraParams = {}) {
+  const activeQ = document.querySelector('.qc-btn.active');
   const params = new URLSearchParams({
     url: elements.urlInput.value,
-    quality: elements.qualitySelect.value,
+    quality: activeQ ? activeQ.dataset.val : '128k',
     ...extraParams,
   });
 
@@ -611,7 +632,7 @@ function getPlaybackPool() {
     }
     return [state.selectedVideo];
   }
-  return state.trendingResults.length ? state.trendingResults : [DEFAULT_SONG];
+  return state.trendingResults.length ? state.trendingResults : [AppConfig.defaultSong];
 }
 
 function chooseAdjacent(direction) {
@@ -1005,6 +1026,7 @@ downloadsNextPage?.addEventListener('click', () => {
   renderDownloadsPage(localDownloadsState.currentPage + 1, localDownloadsState.currentQuery);
 });
 
-selectVideo(DEFAULT_SONG, { keepSearchOpen: true });
+selectVideo(AppConfig.defaultSong, { keepSearchOpen: true });
 preloadTrending();
 updateProgressUi(0);
+
