@@ -219,6 +219,30 @@ When a user clicks a result item:
 4. metadata is resolved if necessary
 5. `startPlayback()` is called right after selection
 
+## What happens with Local Downloads
+
+The app features a dedicated local media scanner to play offline tracks directly from device storage.
+
+### Native directory scanning
+
+If `window.Capacitor.Plugins.LocalBackendPlugin` exists:
+
+1. Clicking the "Local Downloads" button invokes `LocalBackendPlugin.getSavedSongs()`.
+2. The Capacitor plugin requests native `READ_EXTERNAL_STORAGE` and `READ_MEDIA_AUDIO` permissions runtime.
+3. Once granted, it scans the `Environment.DIRECTORY_DOWNLOADS` directory for `.mp3`, `.m4a`, `.aac`, `.webm`, and `.opus` formats.
+4. For each file, it instantiates `MediaMetadataRetriever` to extract embedded thumbnail ID3 tags and converts them to base64 images.
+5. Files are sorted by the latest modified timestamp and returned to the frontend.
+
+### Frontend processing and UI
+
+1. The frontend stores all songs in `localDownloadsState.allSongs`.
+2. A custom Trie-based alphanumeric indexing algorithm tokenizes filenames, allowing instant search lookups for any substring inside the "Local Downloads" modal.
+3. The UI paginates results 100 at a time.
+4. Any song without an embedded thumbnail is uniformly assigned one of three high-res random fallback default thumbnails (`default download thumbnail_1/2/3.jpg`).
+5. When a local track is selected, the `PlaybackPool` isolates playback so `Next` and `Prev` interact exclusively with your downloaded history and local database, ensuring offline isolation.
+6. The frontend bypasses the Express streaming endpoints and assigns `elements.audio.src` directly to the `file://` converted URL structure via Capacitor, playing directly from disk.
+7. Quality toggles normally tied to `yt-dlp` bitrates are safely hidden to prevent stream crashes.
+
 ## How trending song cache works
 
 Trending uses both persistent cache and in-memory cache.
