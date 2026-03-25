@@ -653,3 +653,52 @@ select:focus-visible {
   cursor: not-allowed;
   border-color: transparent;
 }
+
+/* Premium quality option buttons */
+.qc-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 11px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9px;
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s;
+  text-align: left;
+}
+
+.qc-btn::after {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+}
+
+.qc-btn.active {
+  background: rgba(38, 192, 90, 0.12);
+  border-color: rgba(38, 192, 90, 0.5);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.qc-btn.active::after {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 6px rgba(38, 192, 90, 0.6);
+}
+
+.qc-btn:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.menu-item-btn:hover {
+  opacity: 0.75;
+}

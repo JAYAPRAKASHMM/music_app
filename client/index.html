@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/styles.css?v=5">
+  <link rel="stylesheet" href="/assets/styles.css?v=6">
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 
@@ -211,17 +211,25 @@
           <input id="config-default-url" type="text" placeholder="https://youtube.com/watch?v=..." style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:var(--bg-main); color:white; font-family:inherit;">
         </div>
 
-        <button id="save-settings-btn" style="background:var(--primary); color:black; border:none; padding:12px; border-radius:8px; font-weight:600; font-size:1rem; cursor:pointer; margin-top:8px;">Save Settings</button>
+        <div>
+          <label style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:6px; color:var(--text-muted);">YouTube API Key
+             <button id="reset-api-key" style="background:none; border:none; color:var(--primary); font-size:0.8rem; cursor:pointer;">Reset</button>
+          </label>
+          <input id="config-api-key" type="password" placeholder="Enter your YouTube API key" style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:var(--bg-main); color:white; font-family:inherit;">
+        </div>
+
+        <button id="save-settings-btn" style="background:var(--primary); color:black; border:none; padding:12px; border-radius:8px; font-weight:600; font-size:1rem; cursor:pointer; margin-top:8px;">Apply Settings</button>
       </div>
     </div>
   </div>
 
-  <div id="toast-container" style="position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:9999; display:flex; flex-direction:column; gap:10px;"></div>
+  <div id="toast-top-container" style="position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:9999; display:flex; flex-direction:column; gap:8px; align-items:center;"></div>
+  <div id="toast-container" style="position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:9999; display:flex; flex-direction:column; gap:10px; align-items:center;"></div>
 
   <audio id="audio-player"></audio>
   <input type="hidden" id="url-input">
-  <script src="/assets/config.js?v=5"></script>
-  <script src="/assets/app.js?v=5"></script>
+  <script src="/assets/config.js?v=6"></script>
+  <script src="/assets/app.js?v=6"></script>
 </body>
 
 </html>

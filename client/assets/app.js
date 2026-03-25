@@ -680,7 +680,7 @@ async function downloadSelectedVideo() {
   const durationSeconds = state.selectedVideo.durationSeconds || 0;
   if (durationSeconds > 420) {
     const min = Math.round(durationSeconds / 60);
-    alert(`Bro, what are you going to listen to for ${min} minutes? It's a music player, not an audiobook! Play something under 7 mins.`);
+    showTopToast(`🎙️ Bro, ${min} minutes?! That's not a song, that's a podcast! Play something a little shorter.`, 6000);
     return;
   }
 
@@ -775,6 +775,7 @@ document.getElementById('open-config-btn')?.addEventListener('click', () => {
   document.getElementById('config-trending-query').value = AppConfig.trendingQuery;
   document.getElementById('config-trending-limit').value = AppConfig.trendingLimit;
   document.getElementById('config-default-url').value = AppConfig.defaultSong?.url || '';
+  document.getElementById('config-api-key').value = AppConfig.youtubeApiKey ? '••••••••••••' : '';
   modal.classList.remove('hidden');
   lucide.createIcons();
 });
@@ -799,6 +800,17 @@ document.getElementById('reset-trending-limit')?.addEventListener('click', () =>
 });
 document.getElementById('reset-default-song')?.addEventListener('click', () => {
   AppConfig.reset('defaultSong'); showToast('Default song reset to default');
+  document.getElementById('config-default-url').value = AppConfig.defaultSong?.url || '';
+});
+
+document.getElementById('reset-api-key')?.addEventListener('click', () => {
+  AppConfig.reset('youtubeApiKey'); showToast('API key reset to default');
+  document.getElementById('config-api-key').value = '';
+});
+
+// Enter key triggers Apply in the settings modal
+document.getElementById('settings-modal')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('save-settings-btn')?.click();
 });
 
 document.getElementById('save-settings-btn')?.addEventListener('click', async () => {
@@ -806,10 +818,12 @@ document.getElementById('save-settings-btn')?.addEventListener('click', async ()
   const tQ = document.getElementById('config-trending-query').value.trim();
   const tL = parseInt(document.getElementById('config-trending-limit').value, 10);
   const rawUrl = document.getElementById('config-default-url').value.trim();
+  const apiKey = document.getElementById('config-api-key').value.trim();
 
   if (minD > 0) AppConfig.minDuration = minD;
   if (tQ) AppConfig.trendingQuery = tQ;
   if (tL > 0) AppConfig.trendingLimit = tL;
+  if (apiKey) AppConfig.youtubeApiKey = apiKey;
 
   if (rawUrl && rawUrl.includes('youtube.com')) {
     try {
@@ -842,14 +856,26 @@ document.getElementById('clear-cache-btn')?.addEventListener('click', () => {
   showToast('All caches cleared! ✓');
 });
 
-function showToast(msg) {
+function showToast(msg, duration = 2800) { showBottomToast(msg, duration); }
+
+function showBottomToast(msg, duration = 2800) {
   const tc = document.getElementById('toast-container');
   if (!tc) return;
   const t = document.createElement('div');
   t.textContent = msg;
-  t.style.cssText = 'background:rgba(20,30,20,0.95);color:#fff;padding:12px 20px;border-radius:10px;font-size:0.9rem;border:1px solid rgba(38,192,90,0.4);box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);transition:opacity 0.4s;white-space:nowrap;';
+  t.style.cssText = 'background:rgba(15,25,15,0.95);color:#fff;padding:12px 20px;border-radius:10px;font-size:0.9rem;border:1px solid rgba(38,192,90,0.4);box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);transition:opacity 0.4s ease;white-space:nowrap;';
   tc.appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 2800);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, duration);
+}
+
+function showTopToast(msg, duration = 3500) {
+  const tc = document.getElementById('toast-top-container');
+  if (!tc) return;
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'background:rgba(15,25,15,0.97);color:#fff;padding:14px 22px;border-radius:12px;font-size:0.95rem;border:1px solid rgba(255,120,80,0.5);box-shadow:0 6px 28px rgba(0,0,0,0.6);backdrop-filter:blur(12px);transition:opacity 0.4s ease;max-width:90vw;text-align:center;line-height:1.4;';
+  tc.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, duration);
 }
 
 elements.playBtn.addEventListener('click', togglePlayback);
