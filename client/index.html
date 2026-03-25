@@ -24,20 +24,17 @@
           <h1>Monify</h1>
         </div>
       </div>
-      <div class="top-actions" style="display: flex; gap: 8px;">
-        <button class="downloads-trigger" id="downloads-trigger" title="Local Downloads" type="button">
-          <i data-lucide="folder-down"></i>
-          <span class="hide-mobile">Downloads</span>
-        </button>
-        <button class="search-trigger" id="search-trigger" type="button">
-          <i data-lucide="search"></i>
-          <span>Search</span>
-        </button>
-      </div>
+      <button class="search-trigger" id="search-trigger" type="button">
+        <i data-lucide="search"></i>
+        <span>Search</span>
+      </button>
     </header>
 
     <section class="player-card">
-      <div class="quality-anchor">
+      <div class="quality-anchor" style="display: flex; gap: 12px; align-items: center;">
+        <button class="btn-icon menu-trigger" id="downloads-trigger" title="Local Downloads" type="button">
+          <i data-lucide="folder-down"></i>
+        </button>
         <button class="btn-icon menu-trigger" id="quality-menu-btn" title="Quality settings" type="button">
           <i data-lucide="more-horizontal"></i>
         </button>

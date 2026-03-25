@@ -855,8 +855,8 @@ async function renderDownloadsPage(page = 1, query = '') {
       } catch(e) { console.error('Failed to get saved songs', e); }
     } else {
       localDownloadsState.allSongs = Array.from({length: 120}, (_, i) => ({
-        title: `Mock Local Song \${i+1}`,
-        path: `mock/song_\${i+1}.mp3`,
+        title: `Mock Local Song ${i+1}`,
+        path: `mock/song_${i+1}.mp3`,
         lastModified: Date.now() - i*1000
       }));
     }
@@ -871,8 +871,8 @@ async function renderDownloadsPage(page = 1, query = '') {
   const start = (page - 1) * 100;
   const pageSongs = filtered.slice(start, start + 100);
   
-  downloadsCount.textContent = `\${filtered.length} songs`;
-  downloadsPageInfo.textContent = `Page \${page} of \${totalPages}`;
+  downloadsCount.textContent = `${filtered.length} songs`;
+  downloadsPageInfo.textContent = `Page ${page} of ${totalPages}`;
   downloadsPrevPage.disabled = page <= 1;
   downloadsNextPage.disabled = page >= totalPages;
   downloadsPagination.classList.toggle('hidden', totalPages <= 1);
@@ -887,10 +887,22 @@ async function renderDownloadsPage(page = 1, query = '') {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'result-item';
+
+    let thumb = song.thumbnail;
+    if (!thumb) {
+        const thumbnails = [
+          '/assets/default download thumbnail_1.jpg',
+          '/assets/default download thumbnail_2.jpg',
+          '/assets/default download thumbnail_3.jpg'
+        ];
+        thumb = thumbnails[Math.floor(Math.random() * thumbnails.length)];
+        song.thumbnail = thumb; // save it so it doesn't swap on re-renders
+    }
+
     btn.innerHTML = `
-      <img src="\${FALLBACK_THUMBNAIL}" class="result-thumb" alt="Local">
+      <img src="${thumb}" class="result-thumb" alt="Local">
       <div class="result-info">
-        <h3>\${song.title}</h3>
+        <h3>${song.title}</h3>
         <p>Local File</p>
       </div>
       <span class="result-play-btn"><i data-lucide="play"></i></span>
@@ -902,14 +914,14 @@ async function renderDownloadsPage(page = 1, query = '') {
        }
        const mockVideo = {
          id: song.path, title: song.title.replace(/\\.[^/.]+$/, ''),
-         channelTitle: 'Local Audio', thumbnail: FALLBACK_THUMBNAIL, url: src, durationSeconds: 0
+         channelTitle: 'Local Audio', thumbnail: thumb, url: src, durationSeconds: 0
        };
        await selectVideo(mockVideo, { keepSearchOpen: false });
        hideDownloadsView();
        if (src.startsWith('mock/')) { setPlayerStatus('Mock file - wont play in browser'); return; }
        elements.audio.src = src;
        elements.audio.play().then(() => {
-         setPlaying(true); setPlayerStatus(`Playing \${mockVideo.title}`);
+         setPlaying(true); setPlayerStatus(`Playing ${mockVideo.title}`);
        }).catch(e => { console.error(e); setPlayerStatus('Failed to play local file'); });
     });
     downloadsResults.appendChild(btn);

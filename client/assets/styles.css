@@ -367,6 +367,7 @@ img {
 }
 
 #search-input,
+#downloads-search-input,
 #quality-select {
   width: 100%;
   background: transparent;
@@ -375,7 +376,8 @@ img {
   color: var(--text-main);
 }
 
-#search-input::placeholder {
+#search-input::placeholder,
+#downloads-search-input::placeholder {
   color: var(--text-muted);
 }
 

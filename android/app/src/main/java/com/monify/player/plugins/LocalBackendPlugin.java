@@ -159,6 +159,22 @@ public class LocalBackendPlugin extends Plugin {
                             song.put("title", f.getName());
                             song.put("path", f.getAbsolutePath());
                             song.put("lastModified", f.lastModified());
+                            
+                            android.media.MediaMetadataRetriever retriever = new android.media.MediaMetadataRetriever();
+                            try {
+                                retriever.setDataSource(f.getAbsolutePath());
+                                byte[] art = retriever.getEmbeddedPicture();
+                                if (art != null) {
+                                    String base64Art = android.util.Base64.encodeToString(art, android.util.Base64.NO_WRAP);
+                                    // Use standard mime types, jpeg is default for id3 apic
+                                    song.put("thumbnail", "data:image/jpeg;base64," + base64Art);
+                                }
+                            } catch (Exception ex) {
+                                Log.w(TAG, "Failed to extract thumbnail for " + f.getName());
+                            } finally {
+                                try { retriever.release(); } catch (Exception ignored) {}
+                            }
+
                             results.put(song);
                         }
                     }
