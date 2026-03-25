@@ -4,7 +4,6 @@ const { parseIso8601DurationToSeconds } = require('../utils/youtube-duration');
 const { TimedLruCache } = require('../utils/timed-lru-cache');
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
-const MAX_DURATION_SECONDS = 6 * 60;
 const queryCache = new TimedLruCache({
   maxEntries: env.searchCacheMaxEntries,
   ttlMs: env.searchCacheTtlMs,
@@ -22,7 +21,7 @@ async function fetchJson(url) {
   return response.json();
 }
 
-async function searchVideos(query) {
+async function searchVideos(query, minDuration = 120) {
   if (!youtube.apiKey) {
     throw new Error('YouTube Data API key is missing.');
   }
@@ -85,9 +84,8 @@ async function searchVideos(query) {
           durationSeconds,
         };
       })
-      .filter((item) => item.durationSeconds !== null && item.durationSeconds >= 60 && item.durationSeconds < MAX_DURATION_SECONDS)
-      .filter((item) => !item.title.toLowerCase().includes('#shorts'))
-      .slice(0, 50);
+      .filter((item) => item.durationSeconds !== null && item.durationSeconds >= minDuration)
+      .filter((item) => !item.title.toLowerCase().includes('#shorts'));
 
     queryCache.set(normalizedQuery, results);
     return results;
