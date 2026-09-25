@@ -139,9 +139,6 @@ function handleStreamRequest(req, res, contentDisposition) {
     finalize('request-aborted');
   });
 
-  req.on('close', () => {
-    finalize('request-close');
-  });
 }
 
 router.get('/stream', (req, res) => {
