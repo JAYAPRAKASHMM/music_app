@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="stylesheet" href="/assets/styles.css?v=7">
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 
@@ -31,20 +31,39 @@
     </header>
 
     <section class="player-card">
-      <div class="quality-anchor">
+      <div class="quality-anchor" style="display: flex; gap: 12px; align-items: center;">
+        <button class="btn-icon menu-trigger" id="downloads-trigger" title="Local Downloads" type="button">
+          <i data-lucide="folder-down"></i>
+        </button>
         <button class="btn-icon menu-trigger" id="quality-menu-btn" title="Quality settings" type="button">
           <i data-lucide="more-horizontal"></i>
         </button>
         <div id="quality-menu" class="quality-menu hidden">
-          <p class="menu-title">Audio Quality</p>
-          <select id="quality-select">
-            <option value="320k">320k Ultra</option>
-            <option value="256k">256k High</option>
-            <option value="192k">192k Balanced</option>
-            <option value="128k" selected>128k Standard</option>
-            <option value="96k">96k Data Saver</option>
-            <option value="64k">64k Low Bandwidth</option>
-          </select>
+          <div id="main-quality-options" style="display:flex; flex-direction:column; gap:16px;">
+            <button class="menu-item-btn" id="open-resolutions-btn" type="button" style="background:transparent; border:none; color:var(--text-main); font-size:1rem; cursor:pointer; display:flex; align-items:center; gap:12px; width:100%; text-align:left;">
+              <i data-lucide="music" style="width: 18px; height: 18px;"></i> Quality
+            </button>
+            <button class="menu-item-btn" id="open-config-btn" type="button" style="background:transparent; border:none; color:var(--text-main); font-size:1rem; cursor:pointer; display:flex; align-items:center; gap:12px; width:100%; text-align:left;">
+              <i data-lucide="settings" style="width: 18px; height: 18px;"></i> Config
+            </button>
+            <button class="menu-item-btn" id="clear-cache-btn" type="button" style="background:transparent; border:none; color:#ff4d4d; font-size:1rem; cursor:pointer; display:flex; align-items:center; gap:12px; width:100%; text-align:left;">
+              <i data-lucide="trash-2" style="width: 18px; height: 18px;"></i> Clear Caches
+            </button>
+          </div>
+          <div id="resolutions-submenu" class="hidden">
+            <button class="menu-item-btn" id="back-to-main-btn" type="button" style="background:transparent; border:none; color:var(--text-muted); font-size:0.9rem; cursor:pointer; margin-bottom:12px; display:flex; align-items:center; gap:4px; margin-top:-4px;">
+              <i data-lucide="arrow-left" style="width: 16px; height: 16px;"></i> Back
+            </button>
+            <p class="menu-title">Audio Quality</p>
+            <div id="custom-quality-select" style="display:flex; flex-direction:column; gap:8px;">
+              <button type="button" class="qc-btn" data-val="320k">320k Ultra</button>
+              <button type="button" class="qc-btn" data-val="256k">256k High</button>
+              <button type="button" class="qc-btn" data-val="192k">192k Balanced</button>
+              <button type="button" class="qc-btn active" data-val="128k">128k Standard</button>
+              <button type="button" class="qc-btn" data-val="96k">96k Data Saver</button>
+              <button type="button" class="qc-btn" data-val="64k">64k Low</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -96,9 +115,7 @@
 
         <p class="status" id="player-status"></p>
 
-        <div class="action-row">
-          <button class="btn-up-next" id="up-next-btn" type="button">Play Something New</button>
-        </div>
+
       </div>
     </section>
   </main>
@@ -126,10 +143,93 @@
     </section>
   </main>
 
+  <main class="view-container hidden" id="downloads-view">
+    <section class="search-card">
+      <header class="search-header">
+        <div class="search-form">
+          <div class="search-input-wrap">
+            <button type="button" class="btn-icon" id="downloads-back-btn" aria-label="Back to player">
+              <i data-lucide="arrow-left"></i>
+            </button>
+            <input id="downloads-search-input" type="text" placeholder="Search downloaded songs" autocomplete="off">
+          </div>
+        </div>
+      </header>
+
+      <div class="results-meta">
+        <span class="eyebrow" id="downloads-results-label">Local Downloads</span>
+        <span class="count" id="downloads-count"></span>
+      </div>
+
+      <div class="results-container" id="downloads-results"></div>
+      
+      <div class="pagination-controls hidden" id="downloads-pagination">
+        <button class="downloads-trigger" id="downloads-prev-page" disabled>
+          <i data-lucide="chevron-left"></i> Back
+        </button>
+        <span id="downloads-page-info" class="page-info">Page 1</span>
+        <button class="downloads-trigger" id="downloads-next-page" disabled>
+          Next <i data-lucide="chevron-right"></i>
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <div id="settings-modal" class="modal hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; display:flex; padding:20px; justify-content:center; align-items:flex-start; overflow-y:auto;">
+    <div style="background:var(--bg-card); padding:24px; border-radius:12px; width:100%; max-width:400px; margin-top:10vh;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h2 style="margin:0; font-size:1.2rem;">Configuration</h2>
+        <button id="close-settings-btn" style="background:none; border:none; color:white; cursor:pointer;"><i data-lucide="x"></i></button>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div>
+          <label style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:6px; color:var(--text-muted);">Ignore videos shorter than (sec)
+             <button id="reset-min-duration" style="background:none; border:none; color:var(--primary); font-size:0.8rem; cursor:pointer;">Reset</button>
+          </label>
+          <input id="config-min-duration" type="number" style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:var(--bg-main); color:white; font-family:inherit;">
+        </div>
+        
+        <div>
+          <label style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:6px; color:var(--text-muted);">Trending Search Query
+             <button id="reset-trending-query" style="background:none; border:none; color:var(--primary); font-size:0.8rem; cursor:pointer;">Reset</button>
+          </label>
+          <input id="config-trending-query" type="text" style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:var(--bg-main); color:white; font-family:inherit;">
+        </div>
+
+        <div>
+          <label style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:6px; color:var(--text-muted);">Trending Limit
+             <button id="reset-trending-limit" style="background:none; border:none; color:var(--primary); font-size:0.8rem; cursor:pointer;">Reset</button>
+          </label>
+          <input id="config-trending-limit" type="number" style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:var(--bg-main); color:white; font-family:inherit;">
+        </div>
+
+        <div>
+          <label style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:6px; color:var(--text-muted);">Default Song (YouTube URL)
+             <button id="reset-default-song" style="background:none; border:none; color:var(--primary); font-size:0.8rem; cursor:pointer;">Reset</button>
+          </label>
+          <input id="config-default-url" type="text" placeholder="https://youtube.com/watch?v=..." style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:var(--bg-main); color:white; font-family:inherit;">
+        </div>
+
+        <div>
+          <label style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:6px; color:var(--text-muted);">YouTube API Key
+             <button id="reset-api-key" style="background:none; border:none; color:var(--primary); font-size:0.8rem; cursor:pointer;">Reset</button>
+          </label>
+          <input id="config-api-key" type="password" placeholder="Enter your YouTube API key" style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:var(--bg-main); color:white; font-family:inherit;">
+        </div>
+
+        <button id="save-settings-btn" style="background:var(--primary); color:black; border:none; padding:12px; border-radius:8px; font-weight:600; font-size:1rem; cursor:pointer; margin-top:8px;">Apply Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-top-container" style="position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:9999; display:flex; flex-direction:column; gap:8px; align-items:center;"></div>
+  <div id="toast-container" style="position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:9999; display:flex; flex-direction:column; gap:10px; align-items:center;"></div>
+
   <audio id="audio-player"></audio>
   <input type="hidden" id="url-input">
-  <script src="/assets/config.js"></script>
-  <script src="/assets/app.js"></script>
+  <script src="/assets/config.js?v=7"></script>
+  <script src="/assets/app.js?v=7"></script>
 </body>
 
 </html>

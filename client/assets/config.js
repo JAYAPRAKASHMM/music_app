@@ -11,4 +11,5 @@ window.MONIFY_CONFIG = {
   youtubeApiKey: 'AIzaSyD6pERa_td4hkBmpuWnxuEBWRIRqOlJIZc', // Populate your API key for native Android searches
   trendingQuery: 'tamil trending songs',
   trendingLimit: 50,
+  minDurationSeconds: 120,
 };

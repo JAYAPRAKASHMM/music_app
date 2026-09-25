@@ -2,7 +2,9 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ mobile_app ]
+    branches: 
+      - mobile_app
+      - feature/downloads
 
 # This environment variable opts GitHub actions into Node 24 runtime
 # to address the warning about Node 20 deprecation.

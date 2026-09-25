@@ -1,9 +1,30 @@
 lucide.createIcons();
 
-const TRENDING_QUERY = window.MONIFY_CONFIG.trendingQuery;
-const TRENDING_LIMIT = window.MONIFY_CONFIG.trendingLimit;
+const AppConfig = (() => {
+  const getSaved = () => {
+    try { return JSON.parse(localStorage.getItem('monify_user_config')) || {}; }
+    catch { return {}; }
+  };
+  const save = (obj) => localStorage.setItem('monify_user_config', JSON.stringify(obj));
+  
+  return {
+    get defaultSong() { return getSaved().defaultSong || window.MONIFY_CONFIG.defaultSong; },
+    set defaultSong(val) { const s = getSaved(); s.defaultSong = val; save(s); },
+    get trendingQuery() { return getSaved().trendingQuery || window.MONIFY_CONFIG.trendingQuery || 'tamil trending songs'; },
+    set trendingQuery(val) { const s = getSaved(); s.trendingQuery = val; save(s); },
+    get trendingLimit() { return parseInt(getSaved().trendingLimit || window.MONIFY_CONFIG.trendingLimit || 50, 10); },
+    set trendingLimit(val) { const s = getSaved(); s.trendingLimit = val; save(s); },
+    get minDuration() { return parseInt(getSaved().minDuration || window.MONIFY_CONFIG.minDurationSeconds || 120, 10); },
+    set minDuration(val) { const s = getSaved(); s.minDuration = val; save(s); },
+    reset(key) { 
+       const s = getSaved(); 
+       if (key) { delete s[key]; } else { Object.keys(s).forEach(k => delete s[k]); }
+       save(s); 
+    }
+  };
+})();
+
 const FALLBACK_THUMBNAIL = '/assets/logo.svg';
-const DEFAULT_SONG = window.MONIFY_CONFIG.defaultSong;
 
 const elements = {
   playerView: document.getElementById('player-view'),
@@ -11,7 +32,10 @@ const elements = {
   searchTrigger: document.getElementById('search-trigger'),
   qualityMenuBtn: document.getElementById('quality-menu-btn'),
   qualityMenu: document.getElementById('quality-menu'),
-  qualitySelect: document.getElementById('quality-select'),
+  openResBtn: document.getElementById('open-resolutions-btn'),
+  backToMainBtn: document.getElementById('back-to-main-btn'),
+  mainOpts: document.getElementById('main-quality-options'),
+  resSub: document.getElementById('resolutions-submenu'),
   vinylDisc: document.getElementById('vinyl-disc'),
   discThumbnail: document.getElementById('disc-thumbnail'),
   selectedTitle: document.getElementById('selected-title'),
@@ -34,7 +58,6 @@ const elements = {
   totalTime: document.getElementById('total-time'),
   prevBtn: document.getElementById('prev-btn'),
   nextBtn: document.getElementById('next-btn'),
-  upNextBtn: document.getElementById('up-next-btn'),
   recentBtn: document.getElementById('recent-btn'),
 };
 
@@ -139,6 +162,9 @@ function applySongToUi(video) {
   elements.urlInput.value = video.url;
   elements.discThumbnail.src = video.thumbnail || FALLBACK_THUMBNAIL;
   elements.discThumbnail.alt = `${video.title || 'Song'} thumbnail`;
+  elements.discThumbnail.classList.toggle('local-thumb', !!video.isLocalThumb);
+  elements.qualityMenuBtn.style.display = '';
+  if (elements.openResBtn) elements.openResBtn.style.display = video.isLocalThumb ? 'none' : '';
   elements.totalTime.textContent = formatTime(video.durationSeconds || 0);
   updateProgressUi(0);
 }
@@ -313,9 +339,8 @@ async function performNativeYoutubeSearch(query) {
       durationSeconds: durationSeconds,
     };
   })
-    .filter(item => item.durationSeconds >= 60 && item.durationSeconds < 360)
-    .filter(item => !item.title.toLowerCase().includes('#shorts'))
-    .slice(0, 20);
+    .filter(item => item.durationSeconds >= AppConfig.minDuration)
+    .filter(item => !item.title.toLowerCase().includes('#shorts'));
 }
 
 async function searchVideos(query, options = {}) {
@@ -344,7 +369,7 @@ async function searchVideos(query, options = {}) {
   if (window.Capacitor?.isNativePlatform?.()) {
     rawResults = await performNativeYoutubeSearch(query);
   } else {
-    const response = await fetch(`${getApiBaseUrl()}/api/search?q=${encodeURIComponent(query)}`);
+    const response = await fetch(`${getApiBaseUrl()}/api/search?q=${encodeURIComponent(query)}&minDuration=${AppConfig.minDuration}`);
     const data = await response.json();
 
     if (!response.ok) {
@@ -385,10 +410,10 @@ async function preloadTrending() {
       return;
     }
 
-    const results = await searchVideos(TRENDING_QUERY, {
+    const results = await searchVideos(AppConfig.trendingQuery, {
       skipRender: true,
       cacheAsTrending: false, // We'll handle caching manually here
-      limit: TRENDING_LIMIT,
+      limit: AppConfig.trendingLimit,
     });
 
     state.trendingResults = results;
@@ -404,7 +429,7 @@ function showSearchView() {
   elements.searchView.classList.remove('hidden');
   elements.searchInput.focus();
 
-  const cachedTrending = state.cache.get(TRENDING_QUERY) || state.trendingResults;
+  const cachedTrending = state.cache.get(AppConfig.trendingQuery) || state.trendingResults;
   if (cachedTrending.length) {
     state.searchResults = cachedTrending;
     state.activeQueryLabel = 'Trending Now';
@@ -412,9 +437,9 @@ function showSearchView() {
     return;
   }
 
-  searchVideos(TRENDING_QUERY, {
+  searchVideos(AppConfig.trendingQuery, {
     cacheAsTrending: true,
-    limit: TRENDING_LIMIT,
+    limit: AppConfig.trendingLimit,
     label: 'Trending Now',
   }).catch((error) => {
     console.error('Search preload failed:', error);
@@ -424,13 +449,18 @@ function showSearchView() {
 
 function hideSearchView() {
   elements.searchView.classList.add('hidden');
+  const dView = document.getElementById('downloads-view');
+  if (dView && !dView.classList.contains('hidden')) {
+     return; // Don't show player if downloads is active
+  }
   elements.playerView.classList.remove('hidden');
 }
 
 function buildMediaUrl(endpoint, extraParams = {}) {
+  const activeQ = document.querySelector('.qc-btn.active');
   const params = new URLSearchParams({
     url: elements.urlInput.value,
-    quality: elements.qualitySelect.value,
+    quality: activeQ ? activeQ.dataset.val : '128k',
     ...extraParams,
   });
 
@@ -511,7 +541,13 @@ async function startPlayback() {
   setPlayerStatus('Starting stream...');
 
   try {
-    const nextSrc = await resolveStreamUrl(state.selectedVideo.url);
+    let nextSrc;
+    if (state.selectedVideo.isLocalThumb) {
+      if (state.selectedVideo.url.startsWith('mock/')) throw new Error('Mock file - wont play in browser');
+      nextSrc = state.selectedVideo.url;
+    } else {
+      nextSrc = await resolveStreamUrl(state.selectedVideo.url);
+    }
 
     if (!nextSrc) {
       throw new Error('Received empty stream URL');
@@ -579,7 +615,23 @@ function togglePlayback() {
 }
 
 function getPlaybackPool() {
-  return state.trendingResults.length ? state.trendingResults : [DEFAULT_SONG];
+  if (state.selectedVideo?.isLocalThumb) {
+    if (localDownloadsState.allSongs.length > 0) {
+      return localDownloadsState.allSongs.map(song => {
+         let src = song.path;
+         if (window.Capacitor?.convertFileSrc) {
+           src = window.Capacitor.convertFileSrc(src.startsWith('/') ? 'file://' + src : src);
+         }
+         return {
+           id: song.path, title: song.title.replace(/\.[^/.]+$/, ''),
+           channelTitle: 'Local Audio', thumbnail: song.thumbnail || FALLBACK_THUMBNAIL, url: src, durationSeconds: 0,
+           isLocalThumb: true
+         };
+      });
+    }
+    return [state.selectedVideo];
+  }
+  return state.trendingResults.length ? state.trendingResults : [AppConfig.defaultSong];
 }
 
 function chooseAdjacent(direction) {
@@ -628,7 +680,7 @@ async function downloadSelectedVideo() {
   const durationSeconds = state.selectedVideo.durationSeconds || 0;
   if (durationSeconds > 420) {
     const min = Math.round(durationSeconds / 60);
-    alert(`Bro, what are you going to listen to for ${min} minutes? It's a music player, not an audiobook! Play something under 7 mins.`);
+    showTopToast(`🎙️ Bro, ${min} minutes?! That's not a song, that's a podcast! Play something a little shorter.`, 6000);
     return;
   }
 
@@ -681,6 +733,20 @@ elements.searchTrigger.addEventListener('click', showSearchView);
 elements.backBtn.addEventListener('click', hideSearchView);
 elements.qualityMenuBtn.addEventListener('click', () => {
   elements.qualityMenu.classList.toggle('hidden');
+  if (!elements.qualityMenu.classList.contains('hidden') && elements.mainOpts && elements.resSub) {
+    elements.mainOpts.classList.remove('hidden');
+    elements.resSub.classList.add('hidden');
+  }
+});
+
+elements.openResBtn?.addEventListener('click', () => {
+  elements.mainOpts.classList.add('hidden');
+  elements.resSub.classList.remove('hidden');
+});
+
+elements.backToMainBtn?.addEventListener('click', () => {
+  elements.resSub.classList.add('hidden');
+  elements.mainOpts.classList.remove('hidden');
 });
 
 document.addEventListener('click', (event) => {
@@ -689,12 +755,128 @@ document.addEventListener('click', (event) => {
   }
 });
 
-elements.qualitySelect.addEventListener('change', () => {
+// Custom quality button delegation
+document.getElementById('custom-quality-select')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.qc-btn');
+  if (!btn) return;
+  document.querySelectorAll('.qc-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
   elements.qualityMenu.classList.add('hidden');
-  if (state.isPlaying) {
-    startPlayback();
-  }
+  if (state.isPlaying && !state.selectedVideo?.isLocalThumb) startPlayback();
+  showTopToast(`Quality set to ${btn.dataset.val}`);
 });
+
+// Config button
+document.getElementById('open-config-btn')?.addEventListener('click', () => {
+  elements.qualityMenu.classList.add('hidden');
+  const modal = document.getElementById('settings-modal');
+  if (!modal) return;
+  document.getElementById('config-min-duration').value = AppConfig.minDuration;
+  document.getElementById('config-trending-query').value = AppConfig.trendingQuery;
+  document.getElementById('config-trending-limit').value = AppConfig.trendingLimit;
+  document.getElementById('config-default-url').value = AppConfig.defaultSong?.url || '';
+  document.getElementById('config-api-key').value = AppConfig.youtubeApiKey ? '••••••••••••' : '';
+  modal.classList.remove('hidden');
+  lucide.createIcons();
+});
+
+document.getElementById('close-settings-btn')?.addEventListener('click', () => {
+  document.getElementById('settings-modal')?.classList.add('hidden');
+});
+
+document.getElementById('settings-modal')?.addEventListener('click', (e) => {
+  if (e.target === document.getElementById('settings-modal'))
+    document.getElementById('settings-modal').classList.add('hidden');
+});
+
+document.getElementById('reset-min-duration')?.addEventListener('click', () => {
+  AppConfig.reset('minDuration'); showTopToast('Min duration reset to default');
+});
+document.getElementById('reset-trending-query')?.addEventListener('click', () => {
+  AppConfig.reset('trendingQuery'); showTopToast('Trending query reset to default');
+});
+document.getElementById('reset-trending-limit')?.addEventListener('click', () => {
+  AppConfig.reset('trendingLimit'); showTopToast('Trending limit reset to default');
+});
+document.getElementById('reset-default-song')?.addEventListener('click', () => {
+  AppConfig.reset('defaultSong'); showTopToast('Default song reset to default');
+  document.getElementById('config-default-url').value = AppConfig.defaultSong?.url || '';
+});
+
+document.getElementById('reset-api-key')?.addEventListener('click', () => {
+  AppConfig.reset('youtubeApiKey'); showTopToast('API key reset to default');
+  document.getElementById('config-api-key').value = '';
+});
+
+// Enter key triggers Apply in the settings modal
+document.getElementById('settings-modal')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('save-settings-btn')?.click();
+});
+
+document.getElementById('save-settings-btn')?.addEventListener('click', async () => {
+  const minD = parseInt(document.getElementById('config-min-duration').value, 10);
+  const tQ = document.getElementById('config-trending-query').value.trim();
+  const tL = parseInt(document.getElementById('config-trending-limit').value, 10);
+  const rawUrl = document.getElementById('config-default-url').value.trim();
+  const apiKey = document.getElementById('config-api-key').value.trim();
+
+  if (minD > 0) AppConfig.minDuration = minD;
+  if (tQ) AppConfig.trendingQuery = tQ;
+  if (tL > 0) AppConfig.trendingLimit = tL;
+  if (apiKey) AppConfig.youtubeApiKey = apiKey;
+
+  if (rawUrl && rawUrl.includes('youtube.com')) {
+    try {
+      showTopToast('Resolving song metadata…');
+      const res = await fetch(`${getApiBaseUrl()}/api/resolve?url=${encodeURIComponent(rawUrl)}`);
+      const data = await res.json();
+      if (res.ok && data.title) {
+        AppConfig.defaultSong = {
+          id: data.id || '', title: data.title, channelTitle: data.channelTitle || '',
+          url: rawUrl, thumbnail: data.thumbnail || `https://img.youtube.com/vi/${data.id}/hqdefault.jpg`,
+          durationSeconds: data.durationSeconds || 0, note: 'user addicted to this shit🎵'
+        };
+      }
+    } catch(e) { console.error('resolve failed', e); }
+  }
+
+  document.getElementById('settings-modal')?.classList.add('hidden');
+  showTopToast('Settings saved! Restart app to apply all changes.');
+});
+
+// Clear Caches
+document.getElementById('clear-cache-btn')?.addEventListener('click', () => {
+  localStorage.removeItem('monify_trending');
+  localStorage.removeItem('monify_trending_time');
+  localStorage.removeItem('monify_recent');
+  state.trendingResults = [];
+  state.recentlyPlayed = [];
+  state.cache.clear();
+  elements.qualityMenu.classList.add('hidden');
+  showTopToast('All caches cleared! ✓');
+});
+
+function showToast(msg, duration = 2800) { showBottomToast(msg, duration); }
+
+function showBottomToast(msg, duration = 2800) {
+  const tc = document.getElementById('toast-container');
+  if (!tc) return;
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'background:rgba(15,25,15,0.95);color:#fff;padding:12px 20px;border-radius:10px;font-size:0.9rem;border:1px solid rgba(38,192,90,0.4);box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);transition:opacity 0.4s ease;white-space:nowrap;';
+  tc.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, duration);
+}
+
+function showTopToast(msg, duration = 3500) {
+  const tc = document.getElementById('toast-top-container');
+  if (!tc) return;
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'background:rgba(15,25,15,0.97);color:#fff;padding:14px 22px;border-radius:12px;font-size:0.95rem;border:1px solid rgba(255,120,80,0.5);box-shadow:0 6px 28px rgba(0,0,0,0.6);backdrop-filter:blur(12px);transition:opacity 0.4s ease;max-width:90vw;text-align:center;line-height:1.4;';
+  tc.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, duration);
+}
 
 elements.playBtn.addEventListener('click', togglePlayback);
 elements.downloadBtn.addEventListener('click', downloadSelectedVideo);
@@ -704,9 +886,14 @@ elements.recentBtn?.addEventListener('click', () => {
   state.activeQueryLabel = 'Recently Played';
   renderResults(state.recentlyPlayed);
 });
-elements.prevBtn.addEventListener('click', () => { playChosen(chooseAdjacent(-1)); });
+elements.prevBtn.addEventListener('click', () => { 
+  if (state.recentlyPlayed.length > 1) {
+    playChosen(state.recentlyPlayed[1]);
+  } else {
+    playChosen(chooseAdjacent(-1));
+  }
+});
 elements.nextBtn.addEventListener('click', () => { playChosen(chooseAdjacent(1)); });
-elements.upNextBtn.addEventListener('click', () => { playChosen(chooseRandomTrending()); });
 
 elements.searchForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -773,7 +960,190 @@ elements.audio.addEventListener('ended', () => {
   playChosen(chooseRandomTrending());
 });
 
-selectVideo(DEFAULT_SONG, { keepSearchOpen: true });
+const downloadsView = document.getElementById('downloads-view');
+const downloadsTrigger = document.getElementById('downloads-trigger');
+const downloadsBackBtn = document.getElementById('downloads-back-btn');
+const downloadsResults = document.getElementById('downloads-results');
+const downloadsCount = document.getElementById('downloads-count');
+const downloadsSearchInput = document.getElementById('downloads-search-input');
+const downloadsPrevPage = document.getElementById('downloads-prev-page');
+const downloadsNextPage = document.getElementById('downloads-next-page');
+const downloadsPageInfo = document.getElementById('downloads-page-info');
+const downloadsPagination = document.getElementById('downloads-pagination');
+
+class TrieNode {
+  constructor() {
+    this.children = {};
+    this.songs = [];
+  }
+}
+
+const localDownloadsState = {
+  allSongs: [],
+  trieRoot: new TrieNode(),
+  currentPage: 1,
+  currentQuery: ''
+};
+
+function insertTrie(title, song) {
+  const words = title.toLowerCase().split(/[^a-z0-9]+/);
+  for (const word of words) {
+    if (!word) continue;
+    let curr = localDownloadsState.trieRoot;
+    for (let i = 0; i < word.length; i++) {
+      const char = word[i];
+      if (!curr.children[char]) curr.children[char] = new TrieNode();
+      curr = curr.children[char];
+      if (!curr.songs.includes(song)) curr.songs.push(song);
+    }
+  }
+}
+
+function searchTrie(query) {
+  if (!query) return localDownloadsState.allSongs;
+  const words = query.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (!words.length) return localDownloadsState.allSongs;
+
+  let resultSets = [];
+  for (const word of words) {
+    let node = localDownloadsState.trieRoot;
+    let found = true;
+    for (let i = 0; i < word.length; i++) {
+      const char = word[i];
+      if (node.children[char]) node = node.children[char];
+      else { found = false; break; }
+    }
+    if (found) resultSets.push(new Set(node.songs));
+    else return []; 
+  }
+  
+  if (!resultSets.length) return [];
+  let intersection = new Set(resultSets[0]);
+  for (let i = 1; i < resultSets.length; i++) {
+      intersection = new Set([...intersection].filter(x => resultSets[i].has(x)));
+  }
+  return Array.from(intersection);
+}
+
+async function renderDownloadsPage(page = 1, query = '') {
+  localDownloadsState.currentPage = page;
+  localDownloadsState.currentQuery = query;
+  
+  if (!localDownloadsState.allSongs.length && !query) {
+    downloadsResults.innerHTML = '<p class="empty-state">Scanning downloads...</p>';
+    if (window.Capacitor?.Plugins?.LocalBackendPlugin?.getSavedSongs) {
+      try {
+        const res = await window.Capacitor.Plugins.LocalBackendPlugin.getSavedSongs();
+        localDownloadsState.allSongs = res.songs || [];
+      } catch(e) { console.error('Failed to get saved songs', e); }
+    } else {
+      localDownloadsState.allSongs = Array.from({length: 120}, (_, i) => ({
+        title: `Mock Local Song ${i+1}`,
+        path: `mock/song_${i+1}.mp3`,
+        lastModified: Date.now() - i*1000
+      }));
+    }
+    localDownloadsState.trieRoot = new TrieNode();
+    for (const song of localDownloadsState.allSongs) {
+      insertTrie(song.title, song);
+    }
+  }
+  
+  const filtered = searchTrie(query);
+  const totalPages = Math.ceil(filtered.length / 100) || 1;
+  const start = (page - 1) * 100;
+  const pageSongs = filtered.slice(start, start + 100);
+  
+  downloadsCount.textContent = `${filtered.length} songs`;
+  downloadsPageInfo.textContent = `Page ${page} of ${totalPages}`;
+  downloadsPrevPage.disabled = page <= 1;
+  downloadsNextPage.disabled = page >= totalPages;
+  downloadsPagination.classList.toggle('hidden', totalPages <= 1);
+  
+  downloadsResults.innerHTML = '';
+  if (!pageSongs.length) {
+    downloadsResults.innerHTML = '<p class="empty-state">No downloads found.</p>';
+    return;
+  }
+  
+  pageSongs.forEach(song => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'result-item';
+
+    let thumb = song.thumbnail;
+    if (!thumb) {
+        const thumbnails = [
+          '/assets/default download thumbnail_1.jpg',
+          '/assets/default download thumbnail_2.jpg',
+          '/assets/default download thumbnail_3.jpg'
+        ];
+        thumb = thumbnails[Math.floor(Math.random() * thumbnails.length)];
+        song.thumbnail = thumb; // save it so it doesn't swap on re-renders
+    }
+
+    btn.innerHTML = `
+      <img src="${thumb}" class="result-thumb" alt="Local">
+      <div class="result-info">
+        <h3>${song.title}</h3>
+        <p>Local File</p>
+      </div>
+      <span class="result-play-btn"><i data-lucide="play"></i></span>
+    `;
+    btn.addEventListener('click', async () => {
+       let src = song.path;
+       if (window.Capacitor?.convertFileSrc) {
+         src = window.Capacitor.convertFileSrc(src.startsWith('/') ? 'file://' + src : src);
+       }
+       const mockVideo = {
+         id: song.path, title: song.title.replace(/\.[^/.]+$/, ''),
+         channelTitle: 'Local Audio', thumbnail: thumb, url: src, durationSeconds: 0,
+         isLocalThumb: thumb.includes('default download thumbnail') || thumb.includes('mock')
+       };
+       await selectVideo(mockVideo, { keepSearchOpen: false });
+       hideDownloadsView();
+       if (src.startsWith('mock/')) { setPlayerStatus('Mock file - wont play in browser'); return; }
+       elements.audio.src = src;
+       elements.audio.play().then(() => {
+         setPlaying(true); setPlayerStatus(`Playing ${mockVideo.title}`);
+       }).catch(e => { console.error(e); setPlayerStatus('Failed to play local file'); });
+    });
+    downloadsResults.appendChild(btn);
+  });
+  refreshIcons();
+}
+
+function showDownloadsView() {
+  elements.playerView.classList.add('hidden');
+  elements.searchView.classList.add('hidden');
+  downloadsView.classList.remove('hidden');
+  renderDownloadsPage(1, '');
+}
+
+function hideDownloadsView() {
+  downloadsView.classList.add('hidden');
+  elements.playerView.classList.remove('hidden');
+}
+
+downloadsTrigger?.addEventListener('click', showDownloadsView);
+downloadsBackBtn?.addEventListener('click', hideDownloadsView);
+
+let searchTimer;
+downloadsSearchInput?.addEventListener('input', (e) => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => renderDownloadsPage(1, e.target.value), 250);
+});
+
+downloadsPrevPage?.addEventListener('click', () => {
+  if (localDownloadsState.currentPage > 1) renderDownloadsPage(localDownloadsState.currentPage - 1, localDownloadsState.currentQuery);
+});
+downloadsNextPage?.addEventListener('click', () => {
+  renderDownloadsPage(localDownloadsState.currentPage + 1, localDownloadsState.currentQuery);
+});
+
+selectVideo(AppConfig.defaultSong, { keepSearchOpen: true });
 preloadTrending();
 updateProgressUi(0);
+
+
 
