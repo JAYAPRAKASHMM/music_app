@@ -1,6 +1,6 @@
 # Monify
 
-Monify is a local music-streaming app that takes a YouTube or YouTube Music URL, extracts the best available audio with `yt-dlp`, transcodes it to MP3 with `ffmpeg`, and streams it directly to the browser without writing media files to disk.
+Monify is a local music-streaming app that takes a YouTube or YouTube Music URL, extracts the best available audio with `yt-dlp`, transcodes it to MP3 with `ffmpeg`, and streams it directly to the browser without writing media files to disk. It also features a robust offline playback engine via Android Capacitor to play embedded high-resolution local `.mp3` and `.m4a` files.
 
 ## Project Structure
 
@@ -88,4 +88,5 @@ Supported quality values:
 
 - Media is streamed through memory pipes; songs are not stored as files by the app.
 - Search results are cached server-side, and the UI preloads a small Tamil trending set for quick discovery.
+- **Offline Mode:** The Android version leverages native Capacitor plugins to scan, extract ID3 format album art, and locally stream native `.mp3` and `.m4a` files directly from the device's Downloads folder without any network API dependencies.
 - If playback fails, check the server terminal first because most failures come from invalid URLs, unavailable videos, missing API keys, or `yt-dlp` extraction issues.

@@ -32,7 +32,28 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-@CapacitorPlugin(name = "LocalBackendPlugin")
+import android.Manifest;
+import com.getcapacitor.annotation.PermissionCallback;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.PermissionState;
+
+@CapacitorPlugin(
+    name = "LocalBackendPlugin",
+    permissions = {
+        @Permission(
+            alias = "storage_legacy",
+            strings = {
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            }
+        ),
+        @Permission(
+            alias = "storage_media",
+            strings = {
+                Manifest.permission.READ_MEDIA_AUDIO
+            }
+        )
+    }
+)
 public class LocalBackendPlugin extends Plugin {
     private static final String TAG = "LocalBackendPlugin";
     private static final String USER_AGENT =
@@ -134,6 +155,79 @@ public class LocalBackendPlugin extends Plugin {
                 String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
                 Log.e(TAG, "download failed", e);
                 call.reject("Failed to start download: " + msg);
+            }
+        });
+    }
+
+    @PluginMethod
+    public void getSavedSongs(PluginCall call) {
+        String alias = (android.os.Build.VERSION.SDK_INT >= 33) ? "storage_media" : "storage_legacy";
+        
+        if (getPermissionState(alias) != PermissionState.GRANTED) {
+            requestPermissionForAlias(alias, call, "getSavedSongsCallback");
+            return;
+        }
+        executeGetSavedSongs(call);
+    }
+
+    @PermissionCallback
+    private void getSavedSongsCallback(PluginCall call) {
+        String alias = (android.os.Build.VERSION.SDK_INT >= 33) ? "storage_media" : "storage_legacy";
+        
+        if (getPermissionState(alias) == PermissionState.GRANTED) {
+            executeGetSavedSongs(call);
+        } else {
+            call.reject("Storage permission denied");
+        }
+    }
+
+    private void executeGetSavedSongs(PluginCall call) {
+        getBridge().execute(() -> {
+            try {
+                java.io.File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                com.getcapacitor.JSArray results = new com.getcapacitor.JSArray();
+
+                if (dir != null && dir.exists() && dir.isDirectory()) {
+                    java.io.File[] files = dir.listFiles((dir1, name) -> {
+                        String lower = name.toLowerCase(java.util.Locale.US);
+                        return lower.endsWith(".mp3") || lower.endsWith(".m4a") || lower.endsWith(".aac") || lower.endsWith(".webm") || lower.endsWith(".opus");
+                    });
+
+                    if (files != null) {
+                        java.util.Arrays.sort(files, (f1, f2) -> Long.compare(f2.lastModified(), f1.lastModified()));
+
+                        for (java.io.File f : files) {
+                            com.getcapacitor.JSObject song = new com.getcapacitor.JSObject();
+                            song.put("title", f.getName());
+                            song.put("path", f.getAbsolutePath());
+                            song.put("lastModified", f.lastModified());
+                            
+                            android.media.MediaMetadataRetriever retriever = new android.media.MediaMetadataRetriever();
+                            try {
+                                retriever.setDataSource(f.getAbsolutePath());
+                                byte[] art = retriever.getEmbeddedPicture();
+                                if (art != null) {
+                                    String base64Art = android.util.Base64.encodeToString(art, android.util.Base64.NO_WRAP);
+                                    // Use standard mime types, jpeg is default for id3 apic
+                                    song.put("thumbnail", "data:image/jpeg;base64," + base64Art);
+                                }
+                            } catch (Exception ex) {
+                                Log.w(TAG, "Failed to extract thumbnail for " + f.getName());
+                            } finally {
+                                try { retriever.release(); } catch (Exception ignored) {}
+                            }
+
+                            results.put(song);
+                        }
+                    }
+                }
+
+                JSObject ret = new JSObject();
+                ret.put("songs", results);
+                call.resolve(ret);
+            } catch (Exception e) {
+                Log.e(TAG, "getSavedSongs failed", e);
+                call.reject("Failed to read downloads: " + e.getMessage());
             }
         });
     }
